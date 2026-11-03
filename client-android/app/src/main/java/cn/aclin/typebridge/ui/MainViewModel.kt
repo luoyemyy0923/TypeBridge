@@ -9,6 +9,7 @@ import cn.aclin.typebridge.model.ActionItem
 import cn.aclin.typebridge.model.Device
 import cn.aclin.typebridge.model.HistoryItem
 import cn.aclin.typebridge.model.QuickInput
+import cn.aclin.typebridge.model.QuickInputGroup
 import cn.aclin.typebridge.network.AppConnState
 import cn.aclin.typebridge.network.Crypto
 import cn.aclin.typebridge.network.DisconnectReason
@@ -18,6 +19,7 @@ import cn.aclin.typebridge.scan.QrPayload
 import cn.aclin.typebridge.storage.ActionPrefs
 import cn.aclin.typebridge.storage.DeviceIdentity
 import cn.aclin.typebridge.storage.DeviceStore
+import cn.aclin.typebridge.storage.QuickInputPrefs
 import cn.aclin.typebridge.util.NetworkUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +65,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _quickInputs = MutableStateFlow<List<QuickInput>>(emptyList())
     val quickInputs: StateFlow<List<QuickInput>> = _quickInputs.asStateFlow()
 
+    private val _quickGroups = MutableStateFlow<List<QuickInputGroup>>(emptyList())
+    val quickGroups: StateFlow<List<QuickInputGroup>> = _quickGroups.asStateFlow()
+
+    /** 已折叠的分组 id；随界面状态持久化。 */
+    private val _collapsedQuickGroups = MutableStateFlow<Set<Long>>(emptySet())
+    val collapsedQuickGroups: StateFlow<Set<Long>> = _collapsedQuickGroups.asStateFlow()
+
     private val historyRepository = HistoryRepository()
     private val quickInputRepository = QuickInputRepository()
 
@@ -84,10 +93,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _devices.value = DeviceStore.list(appContext)
         _actions.value = ActionPrefs.list(appContext)
         _sendEnter.value = DeviceStore.getSendEnter(appContext)
+        _collapsedQuickGroups.value = QuickInputPrefs.collapsed(appContext)
         scope.launch {
             historyRepository.migrateLegacyIfNeeded(appContext)
             _history.value = historyRepository.list(appContext)
-            _quickInputs.value = quickInputRepository.list(appContext)
+            loadQuickInputs()
         }
         val last = DeviceStore.lastConnected(appContext) ?: return
         _currentDevice.value = last
@@ -521,15 +531,76 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveQuickInput(input: QuickInput) {
         scope.launch {
             quickInputRepository.save(appContext, input)
-            _quickInputs.value = quickInputRepository.list(appContext)
+            loadQuickInputs()
         }
     }
 
     fun deleteQuickInput(input: QuickInput) {
         scope.launch {
             quickInputRepository.delete(appContext, input.id)
-            _quickInputs.value = quickInputRepository.list(appContext)
+            loadQuickInputs()
         }
+    }
+
+    fun saveQuickGroup(group: QuickInputGroup) {
+        scope.launch {
+            quickInputRepository.saveGroup(appContext, group)
+            loadQuickInputs()
+        }
+    }
+
+    fun deleteQuickGroup(group: QuickInputGroup) {
+        scope.launch {
+            quickInputRepository.deleteGroup(appContext, group.id)
+            // 分组已删除，清掉它的折叠状态
+            val collapsed = _collapsedQuickGroups.value - group.id
+            _collapsedQuickGroups.value = collapsed
+            QuickInputPrefs.setCollapsed(appContext, collapsed)
+            loadQuickInputs()
+        }
+    }
+
+    /** 加密条目只允许修改所属分组，不动文本内容。 */
+    fun moveQuickInputToGroup(input: QuickInput, groupId: Long) {
+        scope.launch {
+            quickInputRepository.moveToGroup(appContext, input.id, groupId)
+            loadQuickInputs()
+        }
+    }
+
+    fun toggleQuickGroupCollapsed(group: QuickInputGroup) {
+        val current = _collapsedQuickGroups.value
+        val next = if (group.id in current) current - group.id else current + group.id
+        _collapsedQuickGroups.value = next
+        QuickInputPrefs.setCollapsed(appContext, next)
+    }
+
+    fun moveQuickGroup(group: QuickInputGroup, up: Boolean) {
+        scope.launch {
+            quickInputRepository.moveGroup(appContext, group.id, up)
+            loadQuickInputs()
+        }
+    }
+
+    fun moveQuickInput(input: QuickInput, up: Boolean) {
+        scope.launch {
+            quickInputRepository.moveItem(appContext, input.id, up)
+            loadQuickInputs()
+        }
+    }
+
+    /** 整理数据：未分组 / 失效分组条目移入默认分组，回调移动条数。 */
+    fun tidyQuickInputs(onDone: (Int) -> Unit = {}) {
+        scope.launch {
+            val moved = quickInputRepository.tidyUp(appContext)
+            loadQuickInputs()
+            onDone(moved)
+        }
+    }
+
+    private suspend fun loadQuickInputs() {
+        _quickInputs.value = quickInputRepository.list(appContext)
+        _quickGroups.value = quickInputRepository.listGroups(appContext)
     }
 
     fun execAction(actionId: String, liveText: String) {

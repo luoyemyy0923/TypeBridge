@@ -11,7 +11,11 @@ data class QuickInput(
     val text: String,
     val encrypted: Boolean,
     /** 发送时是否在末尾按回车 */
-    val enter: Boolean = false
+    val enter: Boolean = false,
+    /** 所属分组；0 表示未分组（展示时会归入默认分组） */
+    val groupId: Long = 0,
+    /** 组内排序，越小越靠前 */
+    val sortOrder: Int = 0
 )
 
 /** 只保留首尾两个字符，中间全部替换为 *（加密内容在内存中的展示形式）。 */

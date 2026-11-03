@@ -2,6 +2,7 @@ package cn.aclin.typebridge.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,6 +77,8 @@ fun HomeScreen(vm: MainViewModel) {
     val actions by vm.actions.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
     val quickInputs by vm.quickInputs.collectAsStateWithLifecycle()
+    val quickGroups by vm.quickGroups.collectAsStateWithLifecycle()
+    val collapsedQuickGroups by vm.collapsedQuickGroups.collectAsStateWithLifecycle()
     val sendEnter by vm.sendEnter.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -348,23 +351,40 @@ fun HomeScreen(vm: MainViewModel) {
     if (showQuickInputs) {
         QuickInputSheet(
             items = quickInputs,
+            groups = quickGroups,
             canSend = state is AppConnState.Connected,
+            collapsedGroupIds = collapsedQuickGroups,
             onDismiss = { showQuickInputs = false },
             onSend = { vm.sendQuickInput(it) },
             onSave = { vm.saveQuickInput(it) },
-            onDelete = { vm.deleteQuickInput(it) }
+            onDelete = { vm.deleteQuickInput(it) },
+            onSaveGroup = { vm.saveQuickGroup(it) },
+            onDeleteGroup = { vm.deleteQuickGroup(it) },
+            onMoveGroup = { group, up -> vm.moveQuickGroup(group, up) },
+            onMoveItem = { item, up -> vm.moveQuickInput(item, up) },
+            onMoveItemToGroup = { item, groupId -> vm.moveQuickInputToGroup(item, groupId) },
+            onToggleGroup = { vm.toggleQuickGroupCollapsed(it) },
+            onTidy = {
+                vm.tidyQuickInputs { moved ->
+                    Toast.makeText(context, "已整理 $moved 条到默认分组", Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
         )
     }
 
     if (showQuickSend) {
         QuickInputSheet(
             items = quickInputs,
+            groups = quickGroups,
             canSend = state is AppConnState.Connected,
             manage = false,
+            collapsedGroupIds = collapsedQuickGroups,
             onDismiss = { showQuickSend = false },
             onSend = { vm.sendQuickInput(it) },
             onSave = {},
-            onDelete = {}
+            onDelete = {},
+            onToggleGroup = { vm.toggleQuickGroupCollapsed(it) }
         )
     }
 

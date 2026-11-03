@@ -27,6 +27,7 @@
 - `hello` 新增可选 `deviceName`：Android 本机显示名，每次连接都会上报
 - `hello_ack` 新增 `serverId`：Mac 的稳定 UUID，Android 用它作为 `Device.deviceId`
 - 新增错误码 `4006 = device removed by Mac`：Mac 移除设备时先发加密 `error`，再断开
+- `text` 帧新增可选 `record`（默认 `true`）：`record=false` 表示该文本**不写入历史**，Android 与 macOS 双方都跳过历史记录（用于加密快捷输入）
 - 会话恢复：每次成功恢复都会**轮换新的 `sessionToken`** 并滑动续期，TTL = **30 天**；旧 token 保留一代作为 ack 丢失兜底
 - 会话持久化：Mac 写入 `~/Library/Application Support/TypeBridge/sessions.json`（0600），不依赖 Keychain 或代码签名；重启、重新构建、换路径都能恢复
 - 二维码 URI 的 query 值做严格 percent-encoding：避免 `+` 被 Android `Uri.getQueryParameter()` 解码成空格（`psk` 的 base64 尤其关键）
@@ -41,12 +42,15 @@
 
 ### 0.4 Android 最终 UI / 行为
 
-- AppBar：标题显示当前服务名称 + 状态；右侧只有一个三点菜单：已配对设备 / 增加设备 / 历史记录 / 设置 / 断开连接
+- AppBar：标题显示当前服务名称 + 状态；右侧只有一个三点菜单：已配对设备 / 增加设备 / 快捷输入 / 历史记录 / 设置 / 断开连接
+- 未连接（`Disconnected` / `NeedRescan`）：隐藏指令面板与输入区，只显示已配对设备列表与底部「新增连接」按钮；没有已配对设备时提示与按钮居中
+- 连接中 / 重连中直接展示输入主页（输入框禁用，占位「正在连接…」），避免配对成功后再闪一下切换；冷启动有凭据时直接进入 `Connecting`
 - 「已配对设备」中，当前连接设备带绿点「已连接」且不显示重连按钮
-- 输入区：大文本域撑满剩余高度；底部为「发送时按回车」开关 +「发送」按钮
+- 输入区：大文本域撑满剩余高度；底部为「发送时按回车」开关、快捷输入图标（闪电）+「发送」按钮
+- 快捷输入：三点菜单进入管理页（分组增删改 / 条目增删改 / 分组与条目排序 / 默认分组「整理数据」）；输入栏闪电图标直接弹出**仅发送**的 BottomSheet；分组可展开折叠，状态持久化
 - 历史：带 AppBar 的全屏 BottomSheet；内容最多 2 行，第二行左侧元信息、右侧图标为 重发 / 编辑 / 复制 / 删除；重发不新增历史，只更新原记录状态
 - 设置：带 AppBar 的全屏 BottomSheet，可修改本机设备名称；保存后立即重连一次同步到 Mac
-- Mac 移除设备时下发 `4006`：Android 立即停止重连、清空 PSK/会话，并弹窗提示重新扫码
+- Mac 移除设备时下发 `4006`：Android 立即断开并**删除本地该设备的配对记录**（已无法重连），弹窗提示重新扫码；标题与提示保留最后连接的服务名称
 - 提示文案中的「Mac」全部替换为当前服务名称（无名称时显示「电脑」）
 
 ### 0.5 macOS 最终 UI / 行为
@@ -61,6 +65,29 @@
 - 键盘注入：文本内部换行使用 **Shift+Return**（避免聊天/编辑器误发送）；「发送时按回车」才使用普通 Return
 - 构建产物无开发者证书，使用 ad-hoc 签名；重新构建后可能需要重新勾选辅助功能、重新开启开机启动
 
+### 0.6 Android 本地存储与快捷输入（Room）
+
+- 依赖：Room 2.8.4（`room-runtime` / `room-ktx` / `room-compiler`）+ KSP 2.3.9；`app/build.gradle.kts` 增加 `ksp` 插件
+- 数据库：`typebridge.db`（版本 3），三张表
+  - `quick_inputs`：`id`（自增主键）、`description`、`text`、`encrypted`、`enter`、`groupId`、`sortOrder`
+  - `quick_input_groups`：`id`（自增主键）、`name`、`sortOrder`、`isDefault`
+  - `history`：`id`、`text`、`sentAt`、`status`、`enter`、`deviceName`
+- 迁移：
+  - v1→v2：`quick_inputs` 增加 `enter INTEGER NOT NULL DEFAULT 0`（旧数据默认「否」）
+  - v2→v3：创建 `quick_input_groups` 并插入「默认分组」；`quick_inputs` 增加 `groupId` / `sortOrder`，旧条目全部归入默认分组，`sortOrder = -id`（保持「新的在前」）
+  - 旧 `EncryptedSharedPreferences` 历史在首次启动时一次性迁入 `history`（标记 `history_room_migrated`），此后 `HistoryStore` 仅保留作迁移用途
+- 分组规则（单层，不支持嵌套）：
+  - 分组支持新增 / 重命名 / 删除；删除分组时组内条目自动移动到默认分组，并顺延排序
+  - 默认分组不可删除；默认分组可重命名，也可参与排序
+  - 分组与组内条目都支持上移 / 下移排序
+  - 分组展开 / 折叠状态按分组 id 持久化在 `EncryptedSharedPreferences`（`quick_group_collapsed`），关闭弹窗、重启 App 后保持
+  - 默认分组提供「整理数据」：未分组（`groupId=0`）或分组已失效的条目全部移入默认分组
+- 加密：`encrypted=true` 的快捷输入文本以 AES-256-GCM 密文存库；密钥 32B 只保存在 `EncryptedSharedPreferences`（键 `room_text_key`），AAD 按表区分（`typebridge-quick-input` / `typebridge-history`）；历史文本无论来源一律密文存储
+- 加密内容展示：列表只显示首尾两个字符、中间全部替换为 `*`（≤2 字符全 `*`），不把明文长期留在内存；发送时才按 id 从数据库解密
+- 加密项：不可编辑内容，只能删除后重新添加；支持「修改分组」（只更新 `groupId` / 组内排序，绝不写回文本）
+- 明文快捷输入：正常回显、编辑、删除；编辑弹窗含「描述 / 文本 / 分组 / 加密保存 / 发送时按回车」；只填描述时自动把描述同步为内容，列表只显示一行
+- 发送：快捷输入使用自身的 `enter` 开关（不跟随主页全局开关）；加密快捷输入以 `record=false` 发送，两端均不写历史
+
 ---
 
 ## 1. 功能清单
@@ -72,9 +99,10 @@
 | 自动连接 | `deviceId` 存 `EncryptedSharedPreferences`，启动即连，ON_START 自动恢复 |
 | 状态机 | `Disconnected / Connecting / Connected / AutoReconnecting / NeedRescan` 五态 |
 | 发送 | 输入框文本 + 全局"发送时回车"开关；ack 更新历史状态 |
+| 快捷输入 | Room 持久化（描述 / 文本 / 是否加密 / 发送时回车）；加密项密文存储、界面只显示遮罩；单层分组管理（增删改、分组与组内排序、默认分组整理数据、折叠状态记忆） |
 | 指令面板 | 由 Mac 下发的只读指令库；点击执行 `action`，`sensitive` 指令固定文本不下发 |
-| 设备管理 | 已配对 Mac 列表（名称 / 指纹 / 首次配对 / 最后活跃）；不展示 IP |
-| 历史 | 本地加密保存最近 200 条，可重发 / 清空 / 关闭 |
+| 设备管理 | 已配对 Mac 列表（名称 / 指纹 / 首次配对 / 最后活跃）；不展示 IP；未连接时直接作为主页展示 |
+| 历史 | Room 本地加密持久化，可重发 / 清空 / 删除单条；可一键复制 |
 | 错误提示 | L1 扫码 / L2 网络 / L3 协议 / L4 应用，四层分类，每层明确可操作路径 |
 | 诊断信息 | `NeedRescan` 面板一键复制诊断（手机 IP、Mac 记录 IP、错误码、时间戳） |
 
@@ -121,7 +149,7 @@ app/src/main/java/cn/aclin/typebridge/
     └── HistoryItem.kt
 ```
 
-> **v2.1 实际结构补充**：新增 `ui/screens/SettingsSheet.kt`、`DevicesSheet.kt`、`HistorySheet.kt`、`ui/components/RescanText.kt`、`util/NetworkUtils.kt`；删除 `ui/components/StatusCard.kt`（状态改由 AppBar 展示）。
+> **v2.1 实际结构补充**：新增 `ui/screens/SettingsSheet.kt`、`DevicesSheet.kt`、`HistorySheet.kt`、`QuickInputSheet.kt`（`manage=false` 时仅发送）、`ui/components/RescanText.kt`、`util/NetworkUtils.kt`、`model/QuickInput.kt`、`model/QuickInputGroup.kt`、`storage/QuickInputPrefs.kt`（分组折叠状态）；新增 `data/` 包：`db/AppDatabase.kt`、`db/QuickInputEntity.kt`、`db/QuickInputGroupEntity.kt`、`db/HistoryEntity.kt`、`db/QuickInputDao.kt`、`db/QuickInputGroupDao.kt`、`db/HistoryDao.kt`、`DbKeyStore.kt`、`QuickInputRepository.kt`、`HistoryRepository.kt`；`storage/HistoryStore.kt` 仅保留用于旧历史迁移；删除 `ui/components/StatusCard.kt`（状态改由 AppBar 展示）。
 
 ### 2.1 依赖（`app/build.gradle.kts`）
 
@@ -164,6 +192,7 @@ dependencies {
 
 > **v2.1 实际依赖**：以 `client-android/gradle/libs.versions.toml` 为准。
 > 新增 `okhttp 4.12.0`、`security-crypto 1.1.0-alpha06`、`camera 1.3.4`、`mlkit barcode 17.2.0`；
+> 本地数据库使用 `room 2.8.4`（runtime / ktx / compiler）+ KSP 2.3.9（`ksp` 插件）；
 > 构建使用 Gradle 9.3.1 + AGP 9.1（内置 Kotlin，已移除 `kotlin-android` 插件），`compileSdk/targetSdk = 36`。
 
 ### 2.2 权限（`AndroidManifest.xml`）
@@ -260,11 +289,13 @@ sessionKey  = HKDF-SHA256(
   "id": "a1b2c3d4",
   "text": "hello world",
   "enter": true,
+  "record": true,                        // false = 不写入任何一端的历史（加密快捷输入）
   "ts": 1700000000000
 }
 ```
 
 > v2 把"是否回车"从"选哪条指令"改为 `enter` 布尔字段，与安卓端"发送时回车"开关一一对应。Mac 端按 `enter` 决定是否 `pressReturn()`。
+> v2.1 新增 `record`（缺省视为 `true`）：`false` 时 Android 不落本地历史、Mac 也不调用 `HistoryStore.append`，用于加密快捷输入。
 
 **执行指令**
 
@@ -319,7 +350,7 @@ sessionKey  = HKDF-SHA256(
 | `4003` | 二维码已过期 | 进 `NeedRescan`，提示重新生成 |
 | `4004` | 指令不存在（`actionId` 找不到） | 提示"该指令已被移除"，刷新指令库 |
 | `4005` | 服务端设备数超限 | 提示"该电脑已达连接上限" |
-| `4006` | 已被 Mac 移除设备 | **立即停止重连**，清空本地 PSK/会话，弹窗提示重新扫码 |
+| `4006` | 已被 Mac 移除设备 | **立即停止重连**，删除本地该设备配对记录，保留最后服务名用于展示，弹窗提示重新扫码 |
 
 > 说明：`4006` 由 Mac 在移除设备时以**加密 error 帧**下发，随后断开连接并撤销该设备的所有会话。
 > v2.1 的移除语义已调整为：**移除即断开、即撤销，必须重新扫码才能再次配对**（不再"移除不拉黑"）。
@@ -1173,9 +1204,11 @@ deviceId: b7e2a9c1-...
 > **实现现状（v2.1）**：下面 10.1 ~ 10.6 的代码是 v2 设计参考。实际 UI 已调整为：
 >
 > - 顶部 `TopAppBar`：标题 = 当前服务名称 + 连接状态；右侧只有一个三点菜单
->   （已配对设备 / 增加设备 / 历史记录 / 设置 / 断开连接）
-> - 移除重复的 `StatusCard`；已配对设备、历史、设置使用**带 AppBar 的全屏 BottomSheet**
-> - 输入区为撑满剩余高度的大文本域 +「发送时按回车」开关 +「发送」按钮
+>   （已配对设备 / 增加设备 / 快捷输入 / 历史记录 / 设置 / 断开连接）
+> - 未连接（`Disconnected` / `NeedRescan`）时不显示输入区，改为已配对设备列表 + 底部「新增连接」；无设备时按钮居中
+> - 移除重复的 `StatusCard`；已配对设备、历史、快捷输入、设置使用**带 AppBar 的全屏 BottomSheet**
+> - 输入区为撑满剩余高度的大文本域 +「发送时按回车」开关 + 快捷输入图标 +「发送」按钮
+> - 快捷输入按分组展示：组头为「折叠箭头 + 分组名 + 条目数 + 操作图标」，组内条目为左右布局（左侧两行：加密标记 + 描述 / 内容，右侧为排序与操作图标）；条目与分组名左对齐
 > - 历史每条：内容最多 2 行，第二行左侧为元信息，右侧图标为 重发 / 编辑 / 复制 / 删除
 > - 所有提示中的「Mac」替换为当前服务名称（无名称时用「电脑」）
 >
@@ -1511,6 +1544,25 @@ data class HistoryItem(
     val id: String, val text: String, val sentAt: Long,
     val status: String, val enter: Boolean, val deviceName: String
 )
+
+// model/QuickInput.kt（v2.1）
+data class QuickInput(
+    val id: Long = 0,
+    val description: String,
+    val text: String,          // 加密项在内存中为遮罩预览（首尾字符 + 中间 *）
+    val encrypted: Boolean,
+    val enter: Boolean = false,// 发送时是否按回车
+    val groupId: Long = 0,     // 0 = 未分组（展示时归入默认分组）
+    val sortOrder: Int = 0     // 组内排序
+)
+
+// model/QuickInputGroup.kt（v2.1）
+data class QuickInputGroup(
+    val id: Long = 0,
+    val name: String,
+    val sortOrder: Int = 0,
+    val isDefault: Boolean = false  // 默认分组不可删除
+)
 ```
 
 ### 11.3 `DeviceStore`（简化示意）
@@ -1533,6 +1585,8 @@ object DeviceStore {
 ```
 
 ### 11.4 `HistoryStore`
+
+> **v2.1 现状**：历史已迁移到 Room（`data/db/HistoryEntity` + `HistoryDao` + `HistoryRepository`），文本统一 AES-GCM 密文存储；旧 `EncryptedSharedPreferences` 数据在首次启动时一次性迁入（标记 `history_room_migrated`），`HistoryStore` 仅保留用于该迁移。
 
 - 保存最近 200 条；`EncryptedSharedPreferences` 或 SQLCipher。
 - 提供 `list / save / updateStatus / clear`。
@@ -1590,6 +1644,7 @@ object DeviceStore {
 | 会话恢复 | `sessionToken` **30 天滑动续期**，每次恢复轮换；持久化到 `sessions.json` |
 | 状态推送 | 连接变化 / 设备数变化时向所有客户端广播 `status` |
 | 设备移除 | 下发加密 `4006`、断开连接、撤销会话；必须重新扫码 |
+| 历史 | 记录收到的文本（最近 500 条）；`record=false`（加密快捷输入）不记录 |
 | 二维码消费 | 完整握手成功后清空 PSK、隐藏二维码；关闭窗口再打开生成新码 |
 | 本机名称 | 可设置并在每次连接时通过 `deviceName` 上报；Android 端显示该名称 |
 | 开机启动 | `SMAppService` 登录项开关 |
@@ -2471,6 +2526,8 @@ final class HistoryStore: ObservableObject {
 ```
 
 > **v2 修正**：`append` 内部 `DispatchQueue.main.async`，避免从 FlyingFox 的回调线程写 `@Published`。
+>
+> **v2.1 补充**：收到 `text` 帧时先读取 `record`（缺省 `true`）；`record=false`（加密快捷输入）只注入文本，不调用 `append`，避免密码类内容进入 Mac 历史。
 
 ---
 
