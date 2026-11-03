@@ -6,7 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -17,7 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * 撑满剩余高度的大文本域 + 底部「发送时按回车」开关与「发送」按钮。
+ * 撑满剩余高度的大文本域 + 底部「发送时按回车」开关、快捷输入入口与「发送」按钮。
  */
 @Composable
 fun InputBar(
@@ -28,6 +32,7 @@ fun InputBar(
     onValueChange: (String) -> Unit,
     sendEnter: Boolean,
     onSendEnterChange: (Boolean) -> Unit,
+    onQuickInput: () -> Unit,
     onSend: () -> Unit
 ) {
     Column(
@@ -66,6 +71,9 @@ fun InputBar(
             Spacer(Modifier.width(8.dp))
             Text("发送时按回车", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.weight(1f))
+            IconButton(onClick = onQuickInput) {
+                Icon(Icons.Default.Bolt, contentDescription = "快捷输入")
+            }
             Button(
                 onClick = onSend,
                 enabled = enabled && value.isNotBlank()

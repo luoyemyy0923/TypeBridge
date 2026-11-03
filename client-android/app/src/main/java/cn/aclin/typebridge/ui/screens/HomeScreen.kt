@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.union
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LinkOff
@@ -65,6 +66,7 @@ fun HomeScreen(vm: MainViewModel) {
     val currentDevice by vm.currentDevice.collectAsStateWithLifecycle()
     val actions by vm.actions.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
+    val quickInputs by vm.quickInputs.collectAsStateWithLifecycle()
     val sendEnter by vm.sendEnter.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
@@ -75,6 +77,8 @@ fun HomeScreen(vm: MainViewModel) {
     var showScanner by remember { mutableStateOf(false) }
     var showDevices by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showQuickInputs by remember { mutableStateOf(false) }
+    var showQuickSend by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectConfirm by remember { mutableStateOf(false) }
@@ -161,6 +165,14 @@ fun HomeScreen(vm: MainViewModel) {
                                 }
                             )
                             DropdownMenuItem(
+                                text = { Text("快捷输入") },
+                                leadingIcon = { Icon(Icons.Default.Bolt, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    showQuickInputs = true
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("历史记录") },
                                 leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
                                 onClick = {
@@ -218,6 +230,7 @@ fun HomeScreen(vm: MainViewModel) {
                 onValueChange = { text = it },
                 sendEnter = sendEnter,
                 onSendEnterChange = { vm.setSendEnter(it) },
+                onQuickInput = { showQuickSend = true },
                 onSend = {
                     if (text.isNotBlank()) {
                         vm.send(text)
@@ -257,6 +270,29 @@ fun HomeScreen(vm: MainViewModel) {
             },
             onDelete = { vm.deleteHistoryItem(it) },
             onClear = { vm.clearHistory() }
+        )
+    }
+
+    if (showQuickInputs) {
+        QuickInputSheet(
+            items = quickInputs,
+            canSend = state is AppConnState.Connected,
+            onDismiss = { showQuickInputs = false },
+            onSend = { vm.sendQuickInput(it) },
+            onSave = { vm.saveQuickInput(it) },
+            onDelete = { vm.deleteQuickInput(it) }
+        )
+    }
+
+    if (showQuickSend) {
+        QuickInputSheet(
+            items = quickInputs,
+            canSend = state is AppConnState.Connected,
+            manage = false,
+            onDismiss = { showQuickSend = false },
+            onSend = { vm.sendQuickInput(it) },
+            onSave = {},
+            onDelete = {}
         )
     }
 

@@ -2,10 +2,13 @@ package cn.aclin.typebridge.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import cn.aclin.typebridge.data.HistoryRepository
+import cn.aclin.typebridge.data.QuickInputRepository
 import cn.aclin.typebridge.discovery.MdnsResolver
 import cn.aclin.typebridge.model.ActionItem
 import cn.aclin.typebridge.model.Device
 import cn.aclin.typebridge.model.HistoryItem
+import cn.aclin.typebridge.model.QuickInput
 import cn.aclin.typebridge.network.AppConnState
 import cn.aclin.typebridge.network.Crypto
 import cn.aclin.typebridge.network.DisconnectReason
@@ -15,7 +18,6 @@ import cn.aclin.typebridge.scan.QrPayload
 import cn.aclin.typebridge.storage.ActionPrefs
 import cn.aclin.typebridge.storage.DeviceIdentity
 import cn.aclin.typebridge.storage.DeviceStore
-import cn.aclin.typebridge.storage.HistoryStore
 import cn.aclin.typebridge.util.NetworkUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +56,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _history = MutableStateFlow<List<HistoryItem>>(emptyList())
     val history: StateFlow<List<HistoryItem>> = _history.asStateFlow()
 
+    private val _quickInputs = MutableStateFlow<List<QuickInput>>(emptyList())
+    val quickInputs: StateFlow<List<QuickInput>> = _quickInputs.asStateFlow()
+
+    private val historyRepository = HistoryRepository()
+    private val quickInputRepository = QuickInputRepository()
+
     private val _sendEnter = MutableStateFlow(true)
     val sendEnter: StateFlow<Boolean> = _sendEnter.asStateFlow()
 
@@ -70,9 +78,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun bootstrap() {
         _devices.value = DeviceStore.list(appContext)
-        _history.value = HistoryStore.list(appContext)
         _actions.value = ActionPrefs.list(appContext)
         _sendEnter.value = DeviceStore.getSendEnter(appContext)
+        scope.launch {
+            historyRepository.migrateLegacyIfNeeded(appContext)
+            _history.value = historyRepository.list(appContext)
+            _quickInputs.value = quickInputRepository.list(appContext)
+        }
         val last = DeviceStore.lastConnected(appContext) ?: return
         _currentDevice.value = last
         // 首次启动不立即连接，等 onStart 触发
@@ -461,9 +473,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(text: String) {
         if (text.isBlank()) return
+        dispatchText(text, record = true, enter = _sendEnter.value)
+    }
+
+    /**
+     * 发送一条快捷输入：
+     * - 明文记录正常发送并写入历史
+     * - 加密记录发送时按需从数据库解密，且不写入任何一端的历史
+     * - 是否回车使用该条记录自己的开关，而不是全局开关
+     */
+    fun sendQuickInput(input: QuickInput) {
         if (_state.value !is AppConnState.Connected) return
-        val enter = _sendEnter.value
-        val id = activeClient?.sendText(text, enter) ?: return
+        if (!input.encrypted) {
+            dispatchText(input.text, record = true, enter = input.enter)
+            return
+        }
+        scope.launch {
+            val plain = quickInputRepository.textForSend(appContext, input.id) ?: return@launch
+            dispatchText(plain, record = false, enter = input.enter)
+        }
+    }
+
+    private fun dispatchText(text: String, record: Boolean, enter: Boolean) {
+        if (text.isBlank()) return
+        if (_state.value !is AppConnState.Connected) return
+        val id = activeClient?.sendText(text, enter, record) ?: return
+        if (!record) return
 
         val item = HistoryItem(
             id = id,
@@ -474,7 +509,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             deviceName = _currentDevice.value?.serverName.orEmpty()
         )
         _history.value = listOf(item) + _history.value
-        HistoryStore.save(appContext, item)
+        scope.launch { historyRepository.save(appContext, item) }
+    }
+
+    fun saveQuickInput(input: QuickInput) {
+        scope.launch {
+            quickInputRepository.save(appContext, input)
+            _quickInputs.value = quickInputRepository.list(appContext)
+        }
+    }
+
+    fun deleteQuickInput(input: QuickInput) {
+        scope.launch {
+            quickInputRepository.delete(appContext, input.id)
+            _quickInputs.value = quickInputRepository.list(appContext)
+        }
     }
 
     fun execAction(actionId: String, liveText: String) {
@@ -497,13 +546,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearHistory() {
-        HistoryStore.clear(appContext)
         _history.value = emptyList()
+        scope.launch { historyRepository.clear(appContext) }
     }
 
     fun deleteHistoryItem(item: HistoryItem) {
-        HistoryStore.delete(appContext, item.id)
         _history.value = _history.value.filterNot { it.id == item.id }
+        scope.launch { historyRepository.delete(appContext, item.id) }
     }
 
     fun localDeviceName(): String = DeviceIdentity.getDeviceName(appContext)
@@ -555,7 +604,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _history.value = _history.value.map {
             if (it.id == id) it.copy(status = status) else it
         }
-        HistoryStore.updateStatus(appContext, id, status)
+        scope.launch { historyRepository.updateStatus(appContext, id, status) }
     }
 
     override fun onCleared() {

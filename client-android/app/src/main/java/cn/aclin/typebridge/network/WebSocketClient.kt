@@ -119,7 +119,8 @@ class WebSocketClient(
 
     // MARK: - 发送
 
-    fun sendText(text: String, enter: Boolean): String? {
+    /** [record] = false 时服务端不把该文本写入历史（用于加密快捷输入）。 */
+    fun sendText(text: String, enter: Boolean, record: Boolean = true): String? {
         if (!isOpen()) return null
         val id = UUID.randomUUID().toString()
         val payload = Message.obj {
@@ -127,6 +128,7 @@ class WebSocketClient(
             put("id", id)
             put("text", text)
             put("enter", enter)
+            put("record", record)
             put("ts", System.currentTimeMillis())
         }
         return if (sendEncrypted(Message.encode(payload))) id else null

@@ -351,11 +351,15 @@ public final class Connection: Identifiable, @unchecked Sendable {
             let text = dict["text"] as? String ?? ""
             let pressEnter = dict["enter"] as? Bool ?? true
             let messageId = dict["id"] as? String ?? ""
+            // 加密快捷输入会在客户端标记 record=false，两端都不写历史
+            let record = dict["record"] as? Bool ?? true
 
             await KeyboardInjector.shared.inject(text: text, pressEnter: pressEnter)
-            let device = currentDeviceName
-            await MainActor.run {
-                HistoryStore.shared.append(text: text.isEmpty ? "[回车]" : text, from: device)
+            if record {
+                let device = currentDeviceName
+                await MainActor.run {
+                    HistoryStore.shared.append(text: text.isEmpty ? "[回车]" : text, from: device)
+                }
             }
             sendEncrypted(MessageFrames.ack(id: messageId, ok: true))
             await WebSocketServer.shared.broadcastStatus()
