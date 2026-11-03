@@ -41,7 +41,7 @@ fun DeviceList(
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (devices.isEmpty()) {
             Text(
-                "还没有配对设备，点右上角「+」扫码添加",
+                "还没有配对设备，扫码添加即可",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

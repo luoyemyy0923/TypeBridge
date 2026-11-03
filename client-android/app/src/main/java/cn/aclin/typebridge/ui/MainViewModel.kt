@@ -50,6 +50,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _currentDevice = MutableStateFlow<Device?>(null)
     val currentDevice: StateFlow<Device?> = _currentDevice.asStateFlow()
 
+    /** 最后一次连接成功的服务名称；设备记录被删除后仍用于界面展示。 */
+    private val _lastServerName = MutableStateFlow("")
+    val lastServerName: StateFlow<String> = _lastServerName.asStateFlow()
+
     private val _actions = MutableStateFlow<List<ActionItem>>(emptyList())
     val actions: StateFlow<List<ActionItem>> = _actions.asStateFlow()
 
@@ -87,6 +91,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val last = DeviceStore.lastConnected(appContext) ?: return
         _currentDevice.value = last
+        // 有凭据时提前进入连接中状态，避免启动时先闪一下设备列表
+        if (last.psk != null) {
+            _state.value = AppConnState.Connecting
+        }
         // 首次启动不立即连接，等 onStart 触发
     }
 
@@ -193,6 +201,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 reconnectAttempt = 0
                 triedMdnsFallback = false
                 lastServerError = ""
+                if (serverName.isNotBlank()) {
+                    _lastServerName.value = serverName
+                }
                 _state.value = AppConnState.Connected(serverName, known)
 
                 val resolvedId = serverId ?: device.deviceId
@@ -410,17 +421,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             4006 -> {
-                // Mac 主动移除了该设备：清空 PSK/会话，立即提示重新扫码
+                // Mac 主动移除了该设备：本地也删除配对记录（已无法重连），提示重新扫码
                 _currentDevice.value?.let { device ->
-                    DeviceStore.clearPsk(appContext, device.deviceId)
-                    _currentDevice.value = device.copy(
-                        psk = null,
-                        sessionToken = null,
-                        sessionKey = null,
-                        sessionId = null
-                    )
-                    _devices.value = DeviceStore.list(appContext)
+                    DeviceStore.remove(appContext, device.deviceId)
                 }
+                _currentDevice.value = null
+                _devices.value = DeviceStore.list(appContext)
                 _state.value = AppConnState.NeedRescan(RescanReason.DeviceRemoved)
             }
 

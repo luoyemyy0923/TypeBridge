@@ -33,7 +33,8 @@ fun InputBar(
     sendEnter: Boolean,
     onSendEnterChange: (Boolean) -> Unit,
     onQuickInput: () -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    disabledHint: String = "未连接"
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -51,7 +52,7 @@ fun InputBar(
                     if (enabled) {
                         "输入要发送到 ${targetName.ifBlank { "电脑" }} 的文字…"
                     } else {
-                        "未连接"
+                        disabledHint
                     }
                 )
             },

@@ -5,12 +5,17 @@ import android.content.ClipboardManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
@@ -20,6 +25,7 @@ import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +61,7 @@ import cn.aclin.typebridge.scan.parseQr
 import cn.aclin.typebridge.scan.qrErrorMessage
 import cn.aclin.typebridge.ui.MainViewModel
 import cn.aclin.typebridge.ui.components.ActionPanel
+import cn.aclin.typebridge.ui.components.DeviceList
 import cn.aclin.typebridge.ui.components.InputBar
 import cn.aclin.typebridge.ui.components.needRescanTitle
 import kotlinx.coroutines.launch
@@ -64,6 +72,7 @@ fun HomeScreen(vm: MainViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     val devices by vm.devices.collectAsStateWithLifecycle()
     val currentDevice by vm.currentDevice.collectAsStateWithLifecycle()
+    val lastServerName by vm.lastServerName.collectAsStateWithLifecycle()
     val actions by vm.actions.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
     val quickInputs by vm.quickInputs.collectAsStateWithLifecycle()
@@ -87,12 +96,15 @@ fun HomeScreen(vm: MainViewModel) {
 
     val serverName = (state as? AppConnState.Connected)?.serverName?.takeIf { it.isNotBlank() }
         ?: currentDevice?.serverName?.takeIf { it.isNotBlank() }
+        ?: lastServerName.takeIf { it.isNotBlank() }
         ?: "电脑"
 
     val titleText = when (val current = state) {
         is AppConnState.Connected ->
             current.serverName.ifBlank { currentDevice?.displayName ?: "投字" }
-        else -> currentDevice?.displayName ?: "投字"
+        else -> currentDevice?.displayName
+            ?: lastServerName.takeIf { it.isNotBlank() }
+            ?: "投字"
     }
     val subtitleText = when (val current = state) {
         is AppConnState.Connected ->
@@ -105,6 +117,11 @@ fun HomeScreen(vm: MainViewModel) {
     val canDisconnect = state is AppConnState.Connected ||
         state is AppConnState.Connecting ||
         state is AppConnState.AutoReconnecting
+    // 连接中/重连中直接展示主页，避免配对成功后再闪一下切换
+    val showHome = state is AppConnState.Connected ||
+        state is AppConnState.Connecting ||
+        state is AppConnState.AutoReconnecting
+    val connectedNow = state is AppConnState.Connected
     val connectedDeviceId = if (state is AppConnState.Connected) {
         currentDevice?.deviceId
     } else {
@@ -206,38 +223,93 @@ fun HomeScreen(vm: MainViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
     ) { insets ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(insets)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (actions.isNotEmpty()) {
-                ActionPanel(
-                    actions = actions,
-                    inputText = text,
-                    sourceName = serverName,
-                    onExec = { vm.execAction(it, text) }
+        if (showHome) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(insets)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (actions.isNotEmpty()) {
+                    ActionPanel(
+                        actions = actions,
+                        inputText = text,
+                        sourceName = serverName,
+                        onExec = { vm.execAction(it, text) }
+                    )
+                }
+
+                InputBar(
+                    modifier = Modifier.weight(1f),
+                    enabled = connectedNow,
+                    targetName = serverName,
+                    value = text,
+                    onValueChange = { text = it },
+                    sendEnter = sendEnter,
+                    onSendEnterChange = { vm.setSendEnter(it) },
+                    onQuickInput = { showQuickSend = true },
+                    onSend = {
+                        if (text.isNotBlank()) {
+                            vm.send(text)
+                            text = ""
+                        }
+                    },
+                    disabledHint = "正在连接…"
                 )
             }
+        } else {
+            // 未连接：隐藏输入区，只展示已配对设备与新增连接入口
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(insets)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (devices.isEmpty()) {
+                    // 没有已配对设备：新增连接按钮放在屏幕正中
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "还没有配对设备，扫码添加即可",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = { showScanner = true }) {
+                            Text("新增连接")
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        DeviceList(
+                            devices = devices,
+                            current = currentDevice,
+                            connectedDeviceId = null,
+                            onSelect = { vm.connectDevice(it) },
+                            onRemove = { vm.removeDevice(it) }
+                        )
+                    }
 
-            InputBar(
-                modifier = Modifier.weight(1f),
-                enabled = state is AppConnState.Connected,
-                targetName = serverName,
-                value = text,
-                onValueChange = { text = it },
-                sendEnter = sendEnter,
-                onSendEnterChange = { vm.setSendEnter(it) },
-                onQuickInput = { showQuickSend = true },
-                onSend = {
-                    if (text.isNotBlank()) {
-                        vm.send(text)
-                        text = ""
+                    Button(
+                        onClick = { showScanner = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("新增连接")
                     }
                 }
-            )
+            }
         }
     }
 
