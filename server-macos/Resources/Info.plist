@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>投字</string>
+    <key>CFBundleDisplayName</key>
+    <string>投字</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.typebridge.mac</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleExecutable</key>
+    <string>TypeBridgeMac</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>需要辅助功能权限以将文本输入到当前聚焦的输入框</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>TypeBridge 需要局域网访问以接收来自配对的安卓设备的文本</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_typebridge._tcp</string>
+    </array>
+</dict>
+</plist>

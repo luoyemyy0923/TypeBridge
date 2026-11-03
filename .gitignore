@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.iml
+*.swp
+xcuserdata/
+*.xcuserstate
+
+# 本地配置
+.env
+.env.*
+client-android/local.properties
+
+# Android / Gradle
+client-android/.gradle/
+client-android/build/
+client-android/app/build/
+client-android/.kotlin/
+client-android/captures/
+client-android/.cxx/
+client-android/app/.cxx/
+client-android/.externalNativeBuild/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# SwiftPM / Xcode（macOS 端）
+server-macos/.build/
+server-macos/.swiftpm/
+server-macos/dist/
+DerivedData/
+
+# 日志与临时文件
+*.log
+*.pid
+*.tmp
