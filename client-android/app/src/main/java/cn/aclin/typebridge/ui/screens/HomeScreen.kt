@@ -362,7 +362,7 @@ fun HomeScreen(vm: MainViewModel) {
             onDeleteGroup = { vm.deleteQuickGroup(it) },
             onMoveGroup = { group, up -> vm.moveQuickGroup(group, up) },
             onMoveItem = { item, up -> vm.moveQuickInput(item, up) },
-            onMoveItemToGroup = { item, groupId -> vm.moveQuickInputToGroup(item, groupId) },
+            onSaveMeta = { vm.saveQuickInputMeta(it) },
             onToggleGroup = { vm.toggleQuickGroupCollapsed(it) },
             onTidy = {
                 vm.tidyQuickInputs { moved ->

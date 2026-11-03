@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -24,7 +25,6 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
@@ -76,7 +76,7 @@ fun QuickInputSheet(
     onDeleteGroup: (QuickInputGroup) -> Unit = {},
     onMoveGroup: (QuickInputGroup, Boolean) -> Unit = { _, _ -> },
     onMoveItem: (QuickInput, Boolean) -> Unit = { _, _ -> },
-    onMoveItemToGroup: (QuickInput, Long) -> Unit = { _, _ -> },
+    onSaveMeta: (QuickInput) -> Unit = {},
     onToggleGroup: (QuickInputGroup) -> Unit = {},
     onTidy: () -> Unit = {}
 ) {
@@ -184,7 +184,7 @@ fun QuickInputSheet(
                             if (manage) {
                                 Text(
                                     "暂无条目",
-                                    modifier = Modifier.padding(start = 4.dp, top = 2.dp),
+                                    modifier = Modifier.padding(start = 38.dp, top = 2.dp, bottom = 2.dp),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -213,15 +213,15 @@ fun QuickInputSheet(
 
     val editingEncrypted = editingItem
     if (editingEncrypted != null && editingEncrypted.encrypted) {
-        // 加密条目只允许改分组，绝不把明文/遮罩文本写回数据库
-        EncryptedGroupDialog(
+        // 加密条目：内容与加密标记不可改，其余（描述 / 回车 / 分组）可改
+        EncryptedMetaDialog(
             item = editingEncrypted,
             groups = groups,
             defaultGroupId = defaultGroupId ?: 0L,
             onDismiss = { editingItem = null },
-            onConfirm = { groupId ->
+            onConfirm = { updated ->
                 editingItem = null
-                onMoveItemToGroup(editingEncrypted, groupId)
+                onSaveMeta(updated)
             }
         )
     } else if (creatingItem || editingEncrypted != null) {
@@ -316,7 +316,7 @@ private fun GroupHeader(
                     if (expanded) {
                         Icons.Default.KeyboardArrowDown
                     } else {
-                        Icons.Default.KeyboardArrowRight
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight
                     },
                     contentDescription = if (expanded) "折叠分组" else "展开分组",
                     modifier = Modifier.size(18.dp)
@@ -414,13 +414,8 @@ private fun QuickInputRow(
             }
             CompactIcon(Icons.AutoMirrored.Filled.Send, "发送", canSend, onSend)
             if (manage) {
-                // 加密条目点编辑只弹「修改分组」，不会显示或写回明文
-                CompactIcon(
-                    Icons.Default.Edit,
-                    if (item.encrypted) "修改分组" else "编辑",
-                    true,
-                    onEdit
-                )
+                // 加密条目可编辑描述 / 回车 / 分组（内容与加密标记只读）
+                CompactIcon(Icons.Default.Edit, "编辑", true, onEdit)
                 CompactIcon(Icons.Default.Delete, "删除", true, onDelete)
             }
         }
@@ -569,13 +564,15 @@ private fun QuickInputEditorDialog(
 }
 
 @Composable
-private fun EncryptedGroupDialog(
+private fun EncryptedMetaDialog(
     item: QuickInput,
     groups: List<QuickInputGroup>,
     defaultGroupId: Long,
     onDismiss: () -> Unit,
-    onConfirm: (Long) -> Unit
+    onConfirm: (QuickInput) -> Unit
 ) {
+    var description by remember(item) { mutableStateOf(item.description) }
+    var enter by remember(item) { mutableStateOf(item.enter) }
     var groupId by remember(item) {
         mutableStateOf(item.groupId.takeIf { it != 0L } ?: defaultGroupId)
     }
@@ -583,14 +580,17 @@ private fun EncryptedGroupDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("修改分组") },
+        title = { Text("编辑快捷输入") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "「${item.description.ifBlank { "未命名" }}」已加密，内容不可查看或编辑，只能调整所属分组。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("描述") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "分组",
@@ -618,10 +618,29 @@ private fun EncryptedGroupDialog(
                         }
                     }
                 }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "发送时按回车",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(checked = enter, onCheckedChange = { enter = it })
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(groupId) }) { Text("保存") }
+            TextButton(onClick = {
+                onConfirm(
+                    item.copy(
+                        description = description.trim(),
+                        enter = enter,
+                        groupId = groupId
+                    )
+                )
+            }) {
+                Text("保存")
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }

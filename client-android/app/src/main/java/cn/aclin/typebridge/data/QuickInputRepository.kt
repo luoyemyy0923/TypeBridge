@@ -90,14 +90,24 @@ class QuickInputRepository {
         AppDatabase.get(context).quickInputDao().delete(id)
     }
 
-    /** 只调整所属分组，不动文本（用于加密条目修改分组）。 */
-    suspend fun moveToGroup(context: Context, id: Long, groupId: Long) = withContext(Dispatchers.IO) {
+    /** 加密条目：允许修改描述 / 回车 / 分组，文本与加密标记保持不变。 */
+    suspend fun updateMeta(context: Context, input: QuickInput) = withContext(Dispatchers.IO) {
         val db = AppDatabase.get(context)
         val dao = db.quickInputDao()
-        val existing = dao.get(id) ?: return@withContext
-        val target = resolveGroupId(db, groupId)
-        if (existing.groupId == target) return@withContext
-        dao.updatePlacement(id, target, nextSortOrder(dao, target))
+        val existing = dao.get(input.id) ?: return@withContext
+        val target = resolveGroupId(db, input.groupId)
+        val order = if (existing.groupId == target) {
+            existing.sortOrder
+        } else {
+            nextSortOrder(dao, target)
+        }
+        dao.updateMeta(
+            id = input.id,
+            description = input.description,
+            enter = input.enter,
+            groupId = target,
+            sortOrder = order
+        )
     }
 
     // MARK: - 分组

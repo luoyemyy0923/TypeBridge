@@ -560,10 +560,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 加密条目只允许修改所属分组，不动文本内容。 */
-    fun moveQuickInputToGroup(input: QuickInput, groupId: Long) {
+    /** 加密条目：可改描述 / 回车 / 分组，文本与加密标记不变。 */
+    fun saveQuickInputMeta(input: QuickInput) {
         scope.launch {
-            quickInputRepository.moveToGroup(appContext, input.id, groupId)
+            quickInputRepository.updateMeta(appContext, input)
             loadQuickInputs()
         }
     }

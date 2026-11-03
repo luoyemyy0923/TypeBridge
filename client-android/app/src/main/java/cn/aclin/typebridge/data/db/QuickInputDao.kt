@@ -23,11 +23,21 @@ interface QuickInputDao {
     @Query("SELECT MIN(sortOrder) FROM quick_inputs WHERE groupId = :groupId")
     suspend fun minSortOrder(groupId: Long): Int?
 
-    @Query("UPDATE quick_inputs SET groupId = :groupId, sortOrder = :order WHERE id = :id")
-    suspend fun updatePlacement(id: Long, groupId: Long, order: Int)
-
     @Query("UPDATE quick_inputs SET sortOrder = :order WHERE id = :id")
     suspend fun updateSortOrder(id: Long, order: Int)
+
+    /** 仅更新元信息（描述 / 回车 / 分组 / 排序），不动文本与加密标记。 */
+    @Query(
+        "UPDATE quick_inputs SET description = :description, enter = :enter, " +
+            "groupId = :groupId, sortOrder = :sortOrder WHERE id = :id"
+    )
+    suspend fun updateMeta(
+        id: Long,
+        description: String,
+        enter: Boolean,
+        groupId: Long,
+        sortOrder: Int
+    )
 
     /** 把整组条目移动到另一组，并整体平移排序，避免与目标组已有顺序冲突。 */
     @Query(
