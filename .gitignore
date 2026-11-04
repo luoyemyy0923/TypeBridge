@@ -37,7 +37,17 @@ server-macos/.swiftpm/
 server-macos/dist/
 DerivedData/
 
+# Windows 端（Kotlin / Compose Desktop）
+server-windows/.gradle/
+server-windows/build/
+server-windows/core/build/
+server-windows/app/build/
+server-windows/.kotlin/
+
 # 日志与临时文件
 *.log
 *.pid
 *.tmp
+
+# AI 工作区本地数据
+.workbuddy/
