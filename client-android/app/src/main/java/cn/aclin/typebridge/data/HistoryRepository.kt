@@ -79,6 +79,11 @@ class HistoryRepository {
         AppDatabase.get(context).historyDao().delete(id)
     }
 
+    suspend fun deleteMany(context: Context, ids: List<String>) = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext
+        AppDatabase.get(context).historyDao().deleteMany(ids)
+    }
+
     suspend fun clear(context: Context) = withContext(Dispatchers.IO) {
         AppDatabase.get(context).historyDao().clear()
     }

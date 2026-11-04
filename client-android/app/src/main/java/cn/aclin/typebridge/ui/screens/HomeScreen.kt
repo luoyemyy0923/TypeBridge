@@ -3,9 +3,11 @@ package cn.aclin.typebridge.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +21,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LinkOff
@@ -92,6 +96,7 @@ fun HomeScreen(vm: MainViewModel) {
     var showQuickInputs by remember { mutableStateOf(false) }
     var showQuickSend by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showServers by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectConfirm by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<String?>(null) }
@@ -143,23 +148,62 @@ fun HomeScreen(vm: MainViewModel) {
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            titleText,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            subtitleText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    Box {
+                        Row(
+                            modifier = Modifier.clickable(enabled = devices.isNotEmpty()) {
+                                showServers = true
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    titleText,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    subtitleText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (devices.isNotEmpty()) {
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = "切换服务"
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = showServers,
+                            onDismissRequest = { showServers = false }
+                        ) {
+                            devices.forEach { device ->
+                                DropdownMenuItem(
+                                    text = { Text(device.displayName) },
+                                    trailingIcon = if (device.deviceId == connectedDeviceId) {
+                                        { Icon(Icons.Default.Check, contentDescription = "当前连接") }
+                                    } else {
+                                        null
+                                    },
+                                    onClick = {
+                                        showServers = false
+                                        if (device.deviceId != connectedDeviceId) {
+                                            vm.connectDevice(device)
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showHistory = true }) {
+                        Icon(Icons.Default.History, contentDescription = "历史记录")
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
@@ -190,14 +234,6 @@ fun HomeScreen(vm: MainViewModel) {
                                 onClick = {
                                     showMenu = false
                                     showQuickInputs = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("历史记录") },
-                                leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
-                                onClick = {
-                                    showMenu = false
-                                    showHistory = true
                                 }
                             )
                             DropdownMenuItem(
@@ -344,6 +380,7 @@ fun HomeScreen(vm: MainViewModel) {
                 showHistory = false
             },
             onDelete = { vm.deleteHistoryItem(it) },
+            onDeleteSelected = { vm.deleteHistoryItems(it) },
             onClear = { vm.clearHistory() }
         )
     }

@@ -41,20 +41,6 @@ public struct Device: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-public struct HistoryItem: Identifiable, Codable, Equatable, Sendable {
-    public let id: UUID
-    public let text: String
-    public let receivedAt: Date
-    public let fromDevice: String
-
-    public init(id: UUID = UUID(), text: String, receivedAt: Date = Date(), fromDevice: String) {
-        self.id = id
-        self.text = text
-        self.receivedAt = receivedAt
-        self.fromDevice = fromDevice
-    }
-}
-
 public enum ActionBehavior: String, Codable, CaseIterable, Identifiable, Sendable {
     case text
     case textEnter = "text_enter"

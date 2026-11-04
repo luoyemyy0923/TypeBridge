@@ -12,6 +12,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // 首次启动时提示辅助功能权限；未授权时注入会静默失败
         KeyboardInjector.shared.ensureAccessibility(prompt: true)
 
+        // 历史记录功能已移除：清掉旧版本留下的明文历史
+        UserDefaults.standard.removeObject(forKey: "tb.history")
+
         MenuBarController.shared.install()
 
         ActionStore.shared.onChange = {

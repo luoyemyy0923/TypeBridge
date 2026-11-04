@@ -4,7 +4,6 @@ import SwiftUI
 public struct MenuBarView: View {
     @ObservedObject private var server = WebSocketServer.shared
     @ObservedObject private var devices = DeviceStore.shared
-    @ObservedObject private var history = HistoryStore.shared
     @ObservedObject private var actions = ActionStore.shared
 
     @State private var preferClipboard = UserDefaults.standard.bool(forKey: "tb.preferClipboard")
@@ -24,10 +23,8 @@ public struct MenuBarView: View {
             Divider()
             deviceSection
             Divider()
-            // 暂时隐藏指令库与历史记录两个区块；底层数据与功能仍然保留
+            // 指令库区块暂时隐藏；历史记录功能已移除
             // actionSection
-            // Divider()
-            // historySection
             // Divider()
             footer
         }
@@ -284,53 +281,6 @@ public struct MenuBarView: View {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    // MARK: - History
-
-    private var historySection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("历史 (\(history.items.count))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("清空") { history.clear() }
-                    .font(.caption)
-                    .disabled(history.items.isEmpty)
-            }
-
-            if history.items.isEmpty {
-                Text("还没有发送记录")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(history.items.prefix(20)) { item in
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.text)
-                                        .font(.callout)
-                                        .lineLimit(2)
-                                    Text("\(item.fromDevice) · \(item.receivedAt.formatted(date: .omitted, time: .shortened))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                                Spacer()
-                                Button("重放") {
-                                    Task {
-                                        await KeyboardInjector.shared.inject(text: item.text, pressEnter: false)
-                                    }
-                                }
-                                .font(.caption)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: min(CGFloat(history.items.count), 5) * 48)
             }
         }
     }

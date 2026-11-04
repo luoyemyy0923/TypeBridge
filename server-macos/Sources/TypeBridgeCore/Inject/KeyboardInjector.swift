@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon
 import CoreGraphics
 import Foundation
 
@@ -37,21 +38,38 @@ public final class KeyboardInjector {
     }
 
     /// `pressEnter=true` 时在文本末尾敲回车。
-    public func inject(text: String, pressEnter: Bool) async {
+    /// `allowClipboard=false` 用于加密内容：绝不经剪贴板，只允许直接键盘注入；
+    /// 若当前位置不支持注入则弹窗提示，不做任何兜底。
+    @discardableResult
+    public func inject(text: String, pressEnter: Bool, allowClipboard: Bool = true) async -> Bool {
         guard ensureAccessibility() else {
             TBLog.inject.error("accessibility permission missing")
-            return
+            return false
         }
-        guard !text.isEmpty || pressEnter else { return }
+        guard !text.isEmpty || pressEnter else { return true }
 
         NotificationCenter.default.post(name: .typeBridgeDismissPopover, object: nil)
         try? await Task.sleep(nanoseconds: 30_000_000)
 
         if !text.isEmpty {
-            if preferClipboard {
-                await pasteViaClipboard(text)
-            } else if !(await injectViaUnicode(text)) {
-                await pasteViaClipboard(text)
+            if allowClipboard {
+                if preferClipboard {
+                    await pasteViaClipboard(text)
+                } else if !(await injectViaUnicode(text)) {
+                    await pasteViaClipboard(text)
+                }
+            } else {
+                // 加密内容：安全输入模式或注入失败时不走剪贴板，直接提示
+                if IsSecureEventInputEnabled() {
+                    TBLog.inject.error("secure input enabled; encrypted text not injectable")
+                    showSecureInjectionAlert()
+                    return false
+                }
+                if !(await injectViaUnicode(text)) {
+                    TBLog.inject.error("unicode injection failed; encrypted text not pasted")
+                    showSecureInjectionAlert()
+                    return false
+                }
             }
         }
 
@@ -59,6 +77,18 @@ public final class KeyboardInjector {
             try? await Task.sleep(nanoseconds: 20_000_000)
             pressReturn()
         }
+        return true
+    }
+
+    /// 加密内容无法注入时的提示：明确说明不会使用剪贴板。
+    private func showSecureInjectionAlert() {
+        let alert = NSAlert()
+        alert.messageText = "无法注入加密内容"
+        alert.informativeText = "当前光标位置不支持键盘注入（可能处于安全输入状态）。加密内容不会通过剪贴板填充，请移动光标到可输入的文本框后重试。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "好")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     public func pressReturn() {

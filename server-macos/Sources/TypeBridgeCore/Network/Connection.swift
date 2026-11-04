@@ -351,17 +351,15 @@ public final class Connection: Identifiable, @unchecked Sendable {
             let text = dict["text"] as? String ?? ""
             let pressEnter = dict["enter"] as? Bool ?? true
             let messageId = dict["id"] as? String ?? ""
-            // 加密快捷输入会在客户端标记 record=false，两端都不写历史
-            let record = dict["record"] as? Bool ?? true
+            // 加密快捷输入：secure=true，禁止走剪贴板，内容只出现在最终光标处
+            let secure = dict["secure"] as? Bool ?? false
 
-            await KeyboardInjector.shared.inject(text: text, pressEnter: pressEnter)
-            if record {
-                let device = currentDeviceName
-                await MainActor.run {
-                    HistoryStore.shared.append(text: text.isEmpty ? "[回车]" : text, from: device)
-                }
-            }
-            sendEncrypted(MessageFrames.ack(id: messageId, ok: true))
+            let ok = await KeyboardInjector.shared.inject(
+                text: text,
+                pressEnter: pressEnter,
+                allowClipboard: !secure
+            )
+            sendEncrypted(MessageFrames.ack(id: messageId, ok: ok))
             await WebSocketServer.shared.broadcastStatus()
 
         case "action":
@@ -374,10 +372,6 @@ public final class Connection: Identifiable, @unchecked Sendable {
                 return
             }
             await ActionDispatcher.shared.dispatch(action, liveText: liveText)
-            let device = currentDeviceName
-            await MainActor.run {
-                HistoryStore.shared.append(text: "[指令] \(action.name)", from: device)
-            }
             sendEncrypted(MessageFrames.ack(id: messageId, ok: true))
 
         case "ping":

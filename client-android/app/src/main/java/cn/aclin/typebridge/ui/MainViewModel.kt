@@ -495,7 +495,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * 发送一条快捷输入：
      * - 明文记录正常发送并写入历史
-     * - 加密记录发送时按需从数据库解密，且不写入任何一端的历史
+     * - 加密记录发送时按需从数据库解密，且不写入任何一端的历史；
+     *   同时标记 secure=true，让 Mac 禁用剪贴板兜底
      * - 是否回车使用该条记录自己的开关，而不是全局开关
      */
     fun sendQuickInput(input: QuickInput) {
@@ -506,14 +507,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         scope.launch {
             val plain = quickInputRepository.textForSend(appContext, input.id) ?: return@launch
-            dispatchText(plain, record = false, enter = input.enter)
+            dispatchText(plain, record = false, enter = input.enter, secure = true)
         }
     }
 
-    private fun dispatchText(text: String, record: Boolean, enter: Boolean) {
+    private fun dispatchText(
+        text: String,
+        record: Boolean,
+        enter: Boolean,
+        secure: Boolean = false
+    ) {
         if (text.isBlank()) return
         if (_state.value !is AppConnState.Connected) return
-        val id = activeClient?.sendText(text, enter, record) ?: return
+        val id = activeClient?.sendText(text, enter, record, secure) ?: return
         if (!record) return
 
         val item = HistoryItem(
@@ -630,6 +636,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteHistoryItem(item: HistoryItem) {
         _history.value = _history.value.filterNot { it.id == item.id }
         scope.launch { historyRepository.delete(appContext, item.id) }
+    }
+
+    fun deleteHistoryItems(items: List<HistoryItem>) {
+        if (items.isEmpty()) return
+        val ids = items.map { it.id }.toSet()
+        _history.value = _history.value.filterNot { it.id in ids }
+        scope.launch { historyRepository.deleteMany(appContext, ids.toList()) }
     }
 
     fun localDeviceName(): String = DeviceIdentity.getDeviceName(appContext)

@@ -20,7 +20,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoFixHigh
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -121,9 +120,6 @@ fun QuickInputSheet(
                         IconButton(onClick = { creatingItem = true }) {
                             Icon(Icons.Default.Add, contentDescription = "新增快捷输入")
                         }
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "关闭")
                     }
                 }
             )
@@ -301,7 +297,10 @@ private fun GroupHeader(
     onTidy: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth()) {
-        HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+        HorizontalDivider(
+            thickness = 0.5.dp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
