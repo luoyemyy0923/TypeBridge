@@ -3,7 +3,7 @@ package cn.aclin.typebridge.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,14 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LinkOff
@@ -38,12 +41,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,12 +56,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.aclin.typebridge.model.Device
 import cn.aclin.typebridge.network.AppConnState
 import cn.aclin.typebridge.network.RescanReason
 import cn.aclin.typebridge.scan.QrError
@@ -96,7 +103,6 @@ fun HomeScreen(vm: MainViewModel) {
     var showQuickInputs by remember { mutableStateOf(false) }
     var showQuickSend by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var showServers by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var showDisconnectConfirm by remember { mutableStateOf(false) }
     var scanError by remember { mutableStateOf<String?>(null) }
@@ -135,6 +141,9 @@ fun HomeScreen(vm: MainViewModel) {
     } else {
         null
     }
+    val selectedTabIndex = devices
+        .indexOfFirst { it.deviceId == currentDevice?.deviceId }
+        .takeIf { it >= 0 } ?: 0
 
     val copyDiagnostics: () -> Unit = {
         val clipboard = context.getSystemService(ClipboardManager::class.java)
@@ -146,22 +155,32 @@ fun HomeScreen(vm: MainViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Box {
-                        Row(
-                            modifier = Modifier.clickable(enabled = devices.isNotEmpty()) {
-                                showServers = true
-                            },
-                            verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (devices.isEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
                         ) {
-                            Column(Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    titleText,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                            Text(
+                                titleText,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier
+                                        .size(8.dp)
+                                        .background(connectionDotColor(state), CircleShape)
                                 )
+                                Spacer(Modifier.width(6.dp))
                                 Text(
                                     subtitleText,
                                     style = MaterialTheme.typography.bodySmall,
@@ -170,37 +189,57 @@ fun HomeScreen(vm: MainViewModel) {
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            if (devices.isNotEmpty()) {
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = "切换服务"
-                                )
-                            }
                         }
-                        DropdownMenu(
-                            expanded = showServers,
-                            onDismissRequest = { showServers = false }
+                    } else {
+                        PrimaryScrollableTabRow(
+                            selectedTabIndex = selectedTabIndex,
+                            modifier = Modifier.weight(1f),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            edgePadding = 0.dp,
+                            indicator = {},
+                            divider = {}
                         ) {
-                            devices.forEach { device ->
-                                DropdownMenuItem(
-                                    text = { Text(device.displayName) },
-                                    trailingIcon = if (device.deviceId == connectedDeviceId) {
-                                        { Icon(Icons.Default.Check, contentDescription = "当前连接") }
-                                    } else {
-                                        null
-                                    },
+                            devices.forEachIndexed { index, device ->
+                                val status = tabStatus(device, currentDevice, state)
+                                Tab(
+                                    selected = index == selectedTabIndex,
                                     onClick = {
-                                        showServers = false
-                                        if (device.deviceId != connectedDeviceId) {
+                                        if (device.deviceId != currentDevice?.deviceId) {
                                             vm.connectDevice(device)
+                                        }
+                                    },
+                                    modifier = Modifier.height(64.dp),
+                                    text = {
+                                        Column(horizontalAlignment = Alignment.Start) {
+                                            Text(
+                                                device.displayName,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    Modifier
+                                                        .size(6.dp)
+                                                        .background(status.second, CircleShape)
+                                                )
+                                                Spacer(Modifier.width(5.dp))
+                                                Text(
+                                                    status.first,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = status.second,
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
                                     }
                                 )
                             }
                         }
                     }
-                },
-                actions = {
+
                     IconButton(onClick = { showHistory = true }) {
                         Icon(Icons.Default.History, contentDescription = "历史记录")
                     }
@@ -257,7 +296,7 @@ fun HomeScreen(vm: MainViewModel) {
                         }
                     }
                 }
-            )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
@@ -507,5 +546,31 @@ fun HomeScreen(vm: MainViewModel) {
             onDismiss = { dismissedRescan = needRescan.reason },
             onCopyDiagnostics = copyDiagnostics
         )
+    }
+}
+
+/** 连接状态对应的指示灯颜色。 */
+private fun connectionDotColor(state: AppConnState): Color = when (state) {
+    is AppConnState.Connected -> Color(0xFF2E7D32)
+    AppConnState.Connecting, is AppConnState.AutoReconnecting -> Color(0xFFF9A825)
+    is AppConnState.NeedRescan -> Color(0xFFC62828)
+    AppConnState.Disconnected -> Color(0xFF9E9E9E)
+}
+
+/** Tab 上的两行信息：状态文案 + 指示点颜色。 */
+private fun tabStatus(
+    device: Device,
+    current: Device?,
+    state: AppConnState
+): Pair<String, Color> {
+    if (device.deviceId != current?.deviceId) {
+        return "未连接" to Color(0xFF9E9E9E)
+    }
+    return when (state) {
+        is AppConnState.Connected -> "已连接" to Color(0xFF2E7D32)
+        AppConnState.Connecting, is AppConnState.AutoReconnecting ->
+            "连接中…" to Color(0xFFF9A825)
+        is AppConnState.NeedRescan -> "需重新扫码" to Color(0xFFC62828)
+        AppConnState.Disconnected -> "未连接" to Color(0xFF9E9E9E)
     }
 }
