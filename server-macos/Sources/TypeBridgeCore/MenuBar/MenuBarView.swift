@@ -27,6 +27,8 @@ public struct MenuBarView: View {
             // actionSection
             // Divider()
             footer
+            Divider()
+            exitRow
         }
         .padding(14)
         .frame(width: 380)
@@ -106,7 +108,7 @@ public struct MenuBarView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 2) {
                         ForEach(devices.active) { device in
                             if editingDeviceId == device.id {
                                 HStack(spacing: 6) {
@@ -168,7 +170,7 @@ public struct MenuBarView: View {
                         }
                     }
                 }
-                .frame(maxHeight: CGFloat(min(devices.active.count, 5)) * 30)
+                .frame(maxHeight: CGFloat(min(devices.active.count, 5)) * 26)
 
                 Text("点铅笔可手动改名；未手动改名时会跟随安卓端上报的名称")
                     .font(.caption2)
@@ -288,7 +290,7 @@ public struct MenuBarView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Toggle("开机自动启动", isOn: Binding(
                 get: { LaunchAtLogin.isEnabled },
                 set: { newValue in
@@ -299,25 +301,27 @@ public struct MenuBarView: View {
             ))
             .font(.caption)
 
-            HStack {
-                Toggle("优先使用剪贴板注入", isOn: $preferClipboard)
-                    .font(.caption)
-                    .onChange(of: preferClipboard) { newValue in
-                        KeyboardInjector.shared.usesClipboardFirst = newValue
-                    }
-                Spacer()
-                Button("退出") {
-                    NSApp.terminate(nil)
-                }
+            Toggle("优先使用剪贴板注入", isOn: $preferClipboard)
                 .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .keyboardShortcut("q", modifiers: .command)
-                .help("退出 TypeBridge（⌘Q）")
+                .onChange(of: preferClipboard) { newValue in
+                    KeyboardInjector.shared.usesClipboardFirst = newValue
+                }
+        }
+    }
+
+    // MARK: - Exit
+
+    private var exitRow: some View {
+        HStack {
+            Spacer()
+            Button("退出") {
+                NSApp.terminate(nil)
             }
-            Text("适用于 VS Code / 微信等对 unicode 注入不生效的 App。")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            .font(.caption)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .keyboardShortcut("q", modifiers: .command)
+            .help("退出 TypeBridge（⌘Q）")
         }
     }
 }

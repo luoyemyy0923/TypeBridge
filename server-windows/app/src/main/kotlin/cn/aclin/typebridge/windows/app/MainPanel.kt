@@ -2,8 +2,10 @@ package cn.aclin.typebridge.windows.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -168,14 +170,18 @@ fun MainPanel(
                             KeyboardInjector.preferClipboard = it
                         }
                     )
-                    Text("优先使用剪贴板注入", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("优先使用剪贴板注入", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                // 退出按钮固定在最底部
+                Spacer(Modifier.weight(1f))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     TextButton(onClick = onExit) { Text("退出") }
                 }
-                Text(
-                    "适用于 VS Code / 微信等 unicode 注入不生效的 App。",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
@@ -188,7 +194,7 @@ private fun DeviceRow(device: Device, onRename: (String) -> Unit, onRemove: () -
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (device.online) Color(0xFF4CAF50) else Color(0xFF888888)))
         Spacer(Modifier.width(10.dp))
@@ -199,7 +205,7 @@ private fun DeviceRow(device: Device, onRename: (String) -> Unit, onRemove: () -
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = { onRename(draft); editing = false }) { Text("保存") }
+            CompactButton("保存") { onRename(draft); editing = false }
         } else {
             Text(
                 device.name,
@@ -213,9 +219,25 @@ private fun DeviceRow(device: Device, onRename: (String) -> Unit, onRemove: () -
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
         }
-        TextButton(onClick = { if (editing) editing = false else { editing = true; draft = device.name } }) { Text("✎") }
-        TextButton(onClick = onRemove) { Text("⊖", color = MaterialTheme.colorScheme.error) }
+        CompactButton("✎") { if (editing) editing = false else { editing = true; draft = device.name } }
+        CompactButton("⊖", MaterialTheme.colorScheme.error, onRemove)
+    }
+}
+
+/** 紧凑图标按钮：避免 Material3 TextButton 默认 40dp 最小高度把设备行撑高。 */
+@Composable
+private fun CompactButton(
+    text: String,
+    color: Color = Color.Unspecified,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier.size(28.dp)
+    ) {
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
     }
 }
