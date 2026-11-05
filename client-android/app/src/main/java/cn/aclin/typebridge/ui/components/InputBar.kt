@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ fun InputBar(
     sendEnter: Boolean,
     onSendEnterChange: (Boolean) -> Unit,
     onQuickInput: () -> Unit,
+    onHistory: () -> Unit,
     onSend: () -> Unit,
     disabledHint: String = "未连接"
 ) {
@@ -72,6 +74,9 @@ fun InputBar(
             Spacer(Modifier.width(8.dp))
             Text("发送时按回车", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.weight(1f))
+            IconButton(onClick = onHistory) {
+                Icon(Icons.Default.History, contentDescription = "历史记录")
+            }
             IconButton(onClick = onQuickInput) {
                 Icon(Icons.Default.Bolt, contentDescription = "快捷输入")
             }

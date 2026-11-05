@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -240,9 +239,6 @@ fun HomeScreen(vm: MainViewModel) {
                         }
                     }
 
-                    IconButton(onClick = { showHistory = true }) {
-                        Icon(Icons.Default.History, contentDescription = "历史记录")
-                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
@@ -327,6 +323,7 @@ fun HomeScreen(vm: MainViewModel) {
                     sendEnter = sendEnter,
                     onSendEnterChange = { vm.setSendEnter(it) },
                     onQuickInput = { showQuickSend = true },
+                    onHistory = { showHistory = true },
                     onSend = {
                         if (text.isNotBlank()) {
                             vm.send(text)
