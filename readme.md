@@ -17,6 +17,22 @@
 
 ---
 
+## 应用截图
+
+### Android 客户端
+
+![Android 客户端](android.jpg)
+
+### macOS 服务端
+
+![macOS 服务端](macos.png)
+
+### Windows 服务端
+
+![Windows 服务端](windows.png)
+
+---
+
 ## 快速构建与验证
 
 ### Android
@@ -77,5 +93,8 @@ type-bridge/
 │   ├── app/                 # Compose Desktop 壳（托盘 + 配对窗口）
 │   └── readme.md            # 设计文档
 ├── assets/                  # 图标源文件
+├── android.jpg              # README 截图（Android）
+├── macos.png                # README 截图（macOS）
+├── windows.png              # README 截图（Windows）
 └── readme.md                # 本文件（总览）
 ```
