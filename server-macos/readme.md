@@ -12,7 +12,7 @@
 |---|---|
 | WebSocket 服务 | FlyingFox 监听 `0.0.0.0:8765`，支持多客户端、自动 PING/PONG |
 | 加密通信 | PSK 握手 / `hello_ack` / 派生会话密钥 / 全链路 AES-256-GCM |
-| 键盘注入 | `CGEventKeyboardSetUnicodeString` + `kVK_Return`；剪贴板 Cmd+V 兜底 |
+| 键盘注入 | `CGEventKeyboardSetUnicodeString` + `kVK_Return`；剪贴板 Cmd+V 兜底（`secure=true` 时禁用剪贴板） |
 | 二维码配对 | 生成 `typebridge://connect?...` URI，独立面板展示 + 倒计时 |
 | 网卡选择 | 枚举 IPv4 接口，过滤虚拟网卡，多候选下拉选择 |
 | 网络监测 | `NWPathMonitor` 监听 IP 变化，自动刷新二维码 |
@@ -30,44 +30,52 @@
 ## 2. 工程结构
 
 ```
-TypeBridgeMac/
-├── App/
-│   └── TypeBridgeApp.swift
-├── MenuBar/
-│   ├── MenuBarController.swift
-│   ├── MenuBarView.swift
-│   └── PairingWindow.swift            # 二维码独立窗口
-├── Network/
-│   ├── WebSocketServer.swift          # FlyingFox 封装
-│   ├── ConnectionManager.swift        # 会话、广播、重放保护
-│   ├── SessionStore.swift             # sessionToken → sessionKey 缓存（30 天滑动，持久化）
-│   ├── Message.swift                  # Codable 协议模型
-│   └── Crypto.swift
-├── Inject/
-│   └── KeyboardInjector.swift
-├── Scan/
-│   └── QRCodeGenerator.swift
-├── Net/
-│   └── InterfacePicker.swift          # 网卡枚举 + NWPathMonitor
-├── Storage/
-│   ├── DeviceStore.swift
-│   ├── HistoryStore.swift
-│   ├── ActionStore.swift
-│   └── PSKStore.swift                 # Keychain 存储当前有效 PSK
-├── Model/
-│   ├── Device.swift
-│   ├── HistoryItem.swift
-│   ├── ActionItem.swift
-│   └── QrPayload.swift
-├── Actions/
-│   ├── ActionEditorView.swift
-│   └── ActionDispatcher.swift
-└── Resources/
-    ├── AppIcon.icns
-    └── MenuBarIcon.png
+server-macos/
+├── Package.swift                       # SwiftPM：TypeBridgeCore / TypeBridgeMac / Tests
+├── Scripts/build-app.sh                # 打包为 dist/投字.app（ad-hoc 签名）
+├── Resources/
+│   ├── Info.plist
+│   ├── AppIcon.icns
+│   └── MenuBarIcon.png
+├── Sources/
+│   ├── TypeBridgeCore/
+│   │   ├── Constants.swift             # 协议常量
+│   │   ├── Constants/MacIdentity.swift # serverId / Mac 名称
+│   │   ├── Network/
+│   │   │   ├── WebSocketServer.swift    # FlyingFox 封装
+│   │   │   ├── BridgeMessageHandler.swift
+│   │   │   ├── Connection.swift         # 握手 / 会话恢复 / 业务路由
+│   │   │   ├── Session.swift            # 方向计数 + sessions.json 持久化（30 天滑动）
+│   │   │   ├── MessageFrames.swift      # 帧构造
+│   │   │   └── Crypto.swift
+│   │   ├── Inject/KeyboardInjector.swift
+│   │   ├── Scan/QRCodeGenerator.swift
+│   │   ├── Net/
+│   │   │   ├── InterfacePicker.swift
+│   │   │   ├── NetworkMonitor.swift
+│   │   │   └── BonjourRegistrar.swift
+│   │   ├── Storage/
+│   │   │   ├── DeviceStore.swift
+│   │   │   ├── ActionStore.swift
+│   │   │   └── PSKStore.swift           # Keychain 存储当前有效 PSK
+│   │   ├── Model/Models.swift
+│   │   ├── Actions/
+│   │   │   ├── ActionDispatcher.swift
+│   │   │   ├── ActionEditorView.swift
+│   │   │   └── ActionEditorWindowController.swift
+│   │   ├── MenuBar/
+│   │   │   ├── MenuBarController.swift
+│   │   │   ├── MenuBarView.swift
+│   │   │   ├── PairingContentView.swift
+│   │   │   └── PairingWindowController.swift
+│   │   └── App/
+│   │       ├── AppDelegate.swift
+│   │       └── LaunchAtLogin.swift      # SMAppService
+│   └── TypeBridgeMac/main.swift
+└── Tests/TypeBridgeCoreTests            # 13 个用例
 ```
 
-> **v2.1 实际结构补充**：新增 `Constants/MacIdentity.swift`（serverId / Mac 名称）、`App/LaunchAtLogin.swift`（SMAppService）、`Resources/AppIcon.icns`、`Resources/MenuBarIcon.png`；实际产物为 `dist/投字.app`，测试目标 `TypeBridgeCoreTests`（13 个用例）。
+> **v2.1 现状**：历史记录相关文件（`HistoryStore` / `HistoryItem`）已删除；实际产物为 `dist/投字.app`。
 
 ### 2.1 依赖（`Package.swift` 或 Xcode SPM）
 
@@ -204,8 +212,13 @@ func routeEncryptedFrame(ws: WebSocketSession, dict: [String: Any]) {
         let text = msg["text"] as? String ?? ""
         let enter = (msg["enter"] as? Bool) ?? true
         let id = msg["id"] as? String ?? ""
-        HistoryStore.shared.append(text: text, from: ws.deviceName ?? "当前设备")
-        KeyboardInjector.shared.inject(text: text, pressEnter: enter)
+        let secure = (msg["secure"] as? Bool) ?? false
+        // v2.1：历史记录已移除；secure=true 时禁止剪贴板兜底
+        KeyboardInjector.shared.inject(
+            text: text,
+            pressEnter: enter,
+            allowClipboard: !secure
+        )
         ws.sendEncrypted(buildAck(id: id, ok: true))
         broadcastStatus()
 
@@ -217,7 +230,6 @@ func routeEncryptedFrame(ws: WebSocketSession, dict: [String: Any]) {
             return
         }
         ActionDispatcher.shared.dispatch(action, liveText: liveText)
-        HistoryStore.shared.append(text: "[指令] \(action.name)", from: ws.deviceName ?? "")
 
     case "ping":
         ws.sendEncrypted(buildPong())
@@ -573,6 +585,8 @@ final class KeyboardInjector {
 4. **注入前关 popover**：菜单栏 popover 打开时焦点在 popover 上，注入会打到 popover 里的按钮。必须 `NSPopover.performClose` 且等 30ms。
 5. **剪贴板兜底要恢复原内容**：不能永久污染用户剪贴板。
 6. **失败判定**：`CGEvent` 创建失败（极少）或 `post` 后目标无反应——"无反应"无法检测，只能通过"特殊情况（目标是某些 Electron App）时优先走剪贴板"来规避。
+7. **加密内容禁用剪贴板**：`secure=true` 时只走 unicode 注入；检测到系统处于安全输入态（`IsSecureEventInputEnabled()`）或注入失败时弹窗提示，绝不用剪贴板兜底，确保内容只出现在最终光标处。
+8. **历史记录已移除**：v2.1 不再保存接收过的文本，启动时会清理旧的 `tb.history` 明文数据。
 
 ### 6.4 各 App 的策略建议
 
@@ -923,7 +937,6 @@ final class HistoryStore: ObservableObject {
 struct MenuBarView: View {
     @ObservedObject var server: WebSocketServer = .shared
     @ObservedObject var devices: DeviceStore = .shared
-    @ObservedObject var history: HistoryStore = .shared
     @ObservedObject var actions: ActionStore = .shared
 
     @State private var showActionEditor = false
@@ -1004,27 +1017,6 @@ struct MenuBarView: View {
                 }
             }
 
-            Divider()
-
-            // 历史
-            HStack {
-                Text("历史 (\(history.items.count))")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("清空") { history.items.removeAll() }.font(.caption)
-            }
-            ScrollView {
-                LazyVStack(alignment: .leading) {
-                    ForEach(history.items.prefix(20)) { item in
-                        HStack(alignment: .top) {
-                            Text(item.text).lineLimit(2)
-                            Spacer()
-                            Button("重放") { history.replay(item) }.font(.caption)
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 200)
         }
         .padding()
         .frame(width: 380)

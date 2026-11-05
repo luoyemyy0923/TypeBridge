@@ -43,19 +43,19 @@
 
 ### 0.4 Android 最终 UI / 行为
 
-- AppBar：标题显示当前服务名称 + 状态；标题可点击打开下拉框，列出全部已配对服务端（当前连接带对勾），选中立即切换并重连
-- AppBar 右侧为「历史记录」图标 + 三点菜单：已配对设备 / 增加设备 / 快捷输入 / 设置 / 断开连接
+- AppBar：标题区域为 `PrimaryScrollableTabRow`，每个已配对服务端一个按内容宽度自适应的 Tab；Tab 两行显示「服务名（默认色加粗）+ 状态点/同色状态文字」（已连接绿 / 连接中黄 / 需重扫码红 / 未连接灰），点击 Tab 立即切换并重连；无已配对设备时回退为名称 + 状态两行
+- AppBar 右侧只保留三点菜单：已配对设备 / 增加设备 / 快捷输入 / 设置 / 断开连接
 - 所有 BottomSheet 不带右上角关闭叉号，下滑或点击遮罩关闭
 - 未连接（`Disconnected` / `NeedRescan`）：隐藏指令面板与输入区，只显示已配对设备列表与底部「新增连接」按钮；没有已配对设备时提示与按钮居中
 - 连接中 / 重连中直接展示输入主页（输入框禁用，占位「正在连接…」），避免配对成功后再闪一下切换；冷启动有凭据时直接进入 `Connecting`
 - 「已配对设备」中，当前连接设备带绿点「已连接」且不显示重连按钮
-- 输入区：大文本域撑满剩余高度；底部为「发送时按回车」开关、快捷输入图标（闪电）+「发送」按钮
+- 输入区：大文本域撑满剩余高度；底部为「发送时按回车」开关、历史记录图标、快捷输入图标（闪电）+「发送」按钮
 - 快捷输入：三点菜单进入管理页（分组增删改 / 条目增删改 / 分组与条目排序 / 默认分组「整理数据」）；输入栏闪电图标直接弹出**仅发送**的 BottomSheet；分组可展开折叠，状态持久化
 - 历史：带 AppBar 的全屏 BottomSheet；条目间为 0.5dp 分隔线；内容最多 2 行，第二行左侧元信息、右侧图标（36dp 按钮 + 18dp 图标）为 重发 / 编辑 / 复制 / 删除；重发不新增历史，只更新原记录状态
 - 历史多选删除：AppBar「多选」进入选择态，AppBar 切换为「取消 / 删除」，每项出现复选框；未选中时「删除」不可点
 - 历史清空需二次确认（「确定清空全部 N 条…」）；清空按钮为图标
-- 设置：带 AppBar 的全屏 BottomSheet，可修改本机设备名称；保存后立即重连一次同步到 Mac
-- Mac 移除设备时下发 `4006`：Android 立即断开并**删除本地该设备的配对记录**（已无法重连），弹窗提示重新扫码；标题与提示保留最后连接的服务名称
+- 设置：带 AppBar 的全屏 BottomSheet，可修改本机设备名称；保存后立即重连一次同步到电脑端
+- 服务端移除设备时下发 `4006`：Android 立即断开并**删除本地该设备的配对记录**（已无法重连），弹窗提示重新扫码；标题与提示保留最后连接的服务名称
 - 提示文案中的「Mac」全部替换为当前服务名称（无名称时显示「电脑」）
 
 ### 0.5 macOS 最终 UI / 行为
@@ -105,11 +105,11 @@
 | 状态机 | `Disconnected / Connecting / Connected / AutoReconnecting / NeedRescan` 五态 |
 | 发送 | 输入框文本 + 全局"发送时回车"开关；ack 更新历史状态 |
 | 快捷输入 | Room 持久化（描述 / 文本 / 是否加密 / 发送时回车）；加密项密文存储、界面只显示遮罩；单层分组管理（增删改、分组与组内排序、默认分组整理数据、折叠状态记忆） |
-| 指令面板 | 由 Mac 下发的只读指令库；点击执行 `action`，`sensitive` 指令固定文本不下发 |
-| 设备管理 | 已配对 Mac 列表（名称 / 指纹 / 首次配对 / 最后活跃）；不展示 IP；未连接时直接作为主页展示 |
+| 指令面板 | 由电脑端下发的只读指令库；点击执行 `action`，`sensitive` 指令固定文本不下发 |
+| 设备管理 | 已配对电脑列表（名称 / 指纹 / 首次配对 / 最后活跃）；不展示 IP；未连接时直接作为主页展示 |
 | 历史 | Room 本地加密持久化，可重发 / 复制 / 删除单条 / 多选批量删除；清空需二次确认 |
 | 错误提示 | L1 扫码 / L2 网络 / L3 协议 / L4 应用，四层分类，每层明确可操作路径 |
-| 诊断信息 | `NeedRescan` 面板一键复制诊断（手机 IP、Mac 记录 IP、错误码、时间戳） |
+| 诊断信息 | `NeedRescan` 面板一键复制诊断（手机 IP、服务端记录 IP、错误码、时间戳） |
 
 ---
 
@@ -146,7 +146,7 @@ app/src/main/java/cn/aclin/typebridge/
 │   ├── DeviceStore.kt                 # 设备列表（含 psk 加密存储）
 │   ├── DeviceIdentity.kt              # 本机 deviceId（UUID）
 │   ├── ActionPrefs.kt                 # 指令库缓存（EncryptedSharedPreferences）
-│   ├── HistoryStore.kt                # 历史（EncryptedSharedPreferences）
+│   ├── HistoryStore.kt                # 旧历史（仅用于迁移到 Room）
 │   └── PrefsFactory.kt                # EncryptedSharedPreferences 工厂
 └── model/
     ├── Device.kt
@@ -160,45 +160,67 @@ app/src/main/java/cn/aclin/typebridge/
 
 ```kotlin
 android {
-    minSdk = 24      // Android 7.0
-    targetSdk = 34
+    namespace = "cn.aclin.typebridge"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "cn.aclin.typebridge"
+        minSdk = 24          // Android 7.0
+        targetSdk = 36
+        versionCode = 1
+        versionName = "2.1"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures { compose = true }
 }
 
 dependencies {
-    // Compose 基础
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
-    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.activity.compose)
 
-    // WebSocket
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.icon)
+    implementation(libs.androidx.compose.icon.extended)
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // JSON
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
 
-    // 加密存储
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.okhttp)
+    implementation(libs.androidx.security.crypto)
 
-    // 扫码
-    implementation("androidx.camera:camera-camera2:1.3.4")
-    implementation("androidx.camera:camera-lifecycle:1.3.4")
-    implementation("androidx.camera:camera-view:1.3.4")
-    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
-    // 协程
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
+
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
 }
 ```
 
-> **v2.1 实际依赖**：以 `client-android/gradle/libs.versions.toml` 为准。
-> 新增 `okhttp 4.12.0`、`security-crypto 1.1.0-alpha06`、`camera 1.3.4`、`mlkit barcode 17.2.0`；
+> **v2.1 实际依赖**：版本统一由 `client-android/gradle/libs.versions.toml` 管理。
+> `okhttp 4.12.0`、`security-crypto 1.1.0-alpha06`、`camera 1.3.4`、`mlkit barcode 17.2.0`；
 > 本地数据库使用 `room 2.8.4`（runtime / ktx / compiler）+ KSP 2.3.9（`ksp` 插件）；
-> 构建使用 Gradle 9.3.1 + AGP 9.1（内置 Kotlin，已移除 `kotlin-android` 插件），`compileSdk/targetSdk = 36`。
+> Gradle 9.3.1 + AGP 9.1（内置 Kotlin，已移除 `kotlin-android` 插件）；`compileSdk/targetSdk = 36`，Java/Kotlin 目标 11。
 
 ### 2.2 权限（`AndroidManifest.xml`）
 
@@ -220,7 +242,7 @@ dependencies {
 
 ## 3. 通信协议（v2）
 
-安卓视角的协议摘要，与 macOS 文档 §3 完全一致。**除 `hello` / `hello_ack` 外的所有帧在应用层统一包裹加密**。
+安卓视角的协议摘要，与 macOS / Windows 服务端文档 §3 完全一致；下文以 Mac 作为服务端示例，Windows 端协议完全相同。**除 `hello` / `hello_ack` 外的所有帧在应用层统一包裹加密**。
 
 ### 3.1 帧结构
 
@@ -525,7 +547,7 @@ fun parseQr(raw: String): Result<QrPayload> {
 ### 5.3 扫码 UI 流程
 
 1. 首页 → "扫码添加设备" → 进入 `ScanScreen`
-2. `ScanScreen`：CameraX `PreviewView` + 中央方形扫描框 + 底部提示"对准 Mac 菜单栏的 TypeBridge 二维码"
+2. `ScanScreen`：CameraX `PreviewView` + 中央方形扫描框 + 底部提示"对准电脑端的 TypeBridge 二维码"
 3. 命中二维码 → `parseQr` → 弹半屏确认：
    ```
    即将连接
@@ -596,7 +618,7 @@ fun ScanScreen(onResult: (String) -> Unit, onCancel: () -> Unit) {
 | 场景 | 提示 |
 |---|---|
 | 非 TypeBridge 二维码 | 静默继续扫描 |
-| 二维码字段缺失 / PSK 非法 | "二维码不完整，请在 Mac 上重新生成" |
+| 二维码字段缺失 / PSK 非法 | "二维码不完整，请在电脑端重新生成" |
 | 相机权限被拒 | 弹窗引导去系统设置开启 |
 | 相机不可用（模拟器） | 显示"当前设备无相机"，返回首页 |
 
@@ -846,6 +868,8 @@ class MainActivity : ComponentActivity() {
 > **关键**：用 `onStart` / `onStop` 而非 `onResume` / `onPause`。`onPause` 在下拉通知栏、来电、输入法弹出时都会触发，会引发无谓断开。
 
 ### 7.3 ViewModel 核心（完整）
+
+> **v2.1 现状**：下面的代码是 v2 设计参考。实际历史记录已迁移到 Room（`HistoryRepository`），并新增快捷输入（`QuickInputRepository` / 分组）；`send` / `resend` / 清空 / 状态更新等均走数据库。详见 §0.6 与 §11.4。
 
 ```kotlin
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -1158,27 +1182,27 @@ object DeviceIdentity {
 | 场景 | 触发 | 提示 | 可操作 |
 |---|---|---|---|
 | 非 TypeBridge 二维码 | scheme 不符 | （静默继续） | — |
-| 字段缺失 / PSK 非法 | `parseQr` 失败 | "二维码不完整，请在 Mac 上重新生成" | 重新扫码 |
+| 字段缺失 / PSK 非法 | `parseQr` 失败 | "二维码不完整，请在电脑端重新生成" | 重新扫码 |
 | 相机权限被拒 | `Permission denied` | "需要相机权限扫码，请前往设置开启" | 打开设置 |
-| 版本不支持 | `v != 2` | "App 与 Mac 版本不兼容，请升级" | — |
+| 版本不支持 | `v != 2` | "App 与电脑端版本不兼容，请升级" | — |
 
 ### 9.2 L2 网络层
 
 | 场景 | 检测 | 提示 | 可操作 |
 |---|---|---|---|
-| 手机不在 Wi-Fi | `NetworkUtils.currentWifiIp()` 为 null | "请先连接与 Mac 相同的 Wi-Fi" | 打开 Wi-Fi 设置 |
-| 网段不同 | `/24` 前缀不一致 | "手机和 Mac 不在同一网络" + 具体 IP | "仍然尝试" / "重新扫码" |
-| 连接超时 | `SocketTimeoutException` | "无法连接到 Mac，可能原因：Mac 睡眠 / 已换网 / 防火墙" | 重试 / 重新扫码 |
-| 连接被拒 | `ECONNREFUSED` | "Mac 上 TypeBridge 未启动" | "请在 Mac 菜单栏启动 TypeBridge" |
-| DNS / mDNS 失败 | `UnknownHostException` | "找不到 Mac" | 重新扫码 |
+| 手机不在 Wi-Fi | `NetworkUtils.currentWifiIp()` 为 null | "请先连接与电脑端相同的 Wi-Fi" | 打开 Wi-Fi 设置 |
+| 网段不同 | `/24` 前缀不一致 | "手机和电脑端不在同一网络" + 具体 IP | "仍然尝试" / "重新扫码" |
+| 连接超时 | `SocketTimeoutException` | "无法连接到电脑端，可能原因：电脑睡眠 / 已换网 / 防火墙" | 重试 / 重新扫码 |
+| 连接被拒 | `ECONNREFUSED` | "电脑端 TypeBridge 未启动" | "请在电脑端启动 TypeBridge" |
+| DNS / mDNS 失败 | `UnknownHostException` | "找不到电脑端" | 重新扫码 |
 
 ### 9.3 L3 协议层
 
 | 场景 | 错误码 | 提示 |
 |---|---|---|
-| PSK 认证失败 | `4001` | "认证失败，二维码可能已被 Mac 重置，请重新扫码" |
-| 协议版本不兼容 | `4002` | "App 与 Mac 版本不兼容" |
-| 二维码过期 | `4003` | "二维码已过期，请在 Mac 上点击「生成新码」" |
+| PSK 认证失败 | `4001` | "认证失败，二维码可能已被电脑端重置，请重新扫码" |
+| 协议版本不兼容 | `4002` | "App 与电脑端版本不兼容" |
+| 二维码过期 | `4003` | "二维码已过期，请在电脑端点击「生成新码」" |
 | 指纹不匹配 | 本地判定 | "服务器指纹不匹配，可能扫到了伪造二维码" |
 
 ### 9.4 L4 应用层
@@ -1196,7 +1220,7 @@ object DeviceIdentity {
 ```
 TypeBridge v2 诊断
 手机 IP: 192.168.1.42 (Wi-Fi: MyHome)
-Mac 记录: 192.168.1.10:8765
+服务端记录: 192.168.1.10:8765
 deviceId: b7e2a9c1-...
 指纹: a1b2c3d4
 错误: 4001 auth failed
@@ -1209,12 +1233,11 @@ deviceId: b7e2a9c1-...
 
 > **实现现状（v2.1）**：下面 10.1 ~ 10.6 的代码是 v2 设计参考。实际 UI 已调整为：
 >
-> - 顶部 `TopAppBar`：标题 = 当前服务名称 + 连接状态；点击标题可下拉切换已配对服务端（右下角箭头，当前项带对勾）
-> - AppBar 右侧为「历史记录」图标 + 三点菜单（已配对设备 / 增加设备 / 快捷输入 / 设置 / 断开连接）
+> - 顶部：标题区域为 `PrimaryScrollableTabRow`（每个已配对服务端一个按内容宽度自适应的 Tab，两行：服务名 / 状态点 + 同色状态文字，点击切换）；右侧只有三点菜单（已配对设备 / 增加设备 / 快捷输入 / 设置 / 断开连接）
 > - 所有 BottomSheet 不带右上角关闭叉号，下滑或点击遮罩关闭
 > - 未连接（`Disconnected` / `NeedRescan`）时不显示输入区，改为已配对设备列表 + 底部「新增连接」；无设备时按钮居中
 > - 移除重复的 `StatusCard`；已配对设备、历史、快捷输入、设置使用**带 AppBar 的全屏 BottomSheet**
-> - 输入区为撑满剩余高度的大文本域 +「发送时按回车」开关 + 快捷输入图标 +「发送」按钮
+> - 输入区为撑满剩余高度的大文本域 +「发送时按回车」开关 + 历史记录图标 + 快捷输入图标 +「发送」按钮
 > - 快捷输入按分组展示：组头为「折叠箭头 + 分组名 + 条目数 + 操作图标」，组内条目为左右布局（左侧两行：加密标记 + 描述 / 内容，右侧为排序与操作图标）；条目与分组名左对齐
 > - 历史每条：内容最多 2 行，条目间 0.5dp 分隔线，第二行左侧为元信息，右侧 36dp/18dp 图标为 重发 / 编辑 / 复制 / 删除；支持「多选」批量删除与清空二次确认
 > - 所有提示中的「Mac」替换为当前服务名称（无名称时用「电脑」）
@@ -1595,7 +1618,7 @@ object DeviceStore {
 
 > **v2.1 现状**：历史已迁移到 Room（`data/db/HistoryEntity` + `HistoryDao` + `HistoryRepository`），文本统一 AES-GCM 密文存储；旧 `EncryptedSharedPreferences` 数据在首次启动时一次性迁入（标记 `history_room_migrated`），`HistoryStore` 仅保留用于该迁移。
 
-- 保存最近 200 条；`EncryptedSharedPreferences` 或 SQLCipher。
+- 保存历史记录（Room 持久化，无固定条数上限；旧版迁移上限为 200 条）。
 - 提供 `list / save / updateStatus / clear`。
 - **默认不记录"固定敏感文本"**：`text` 为用户输入框原文；`sensitive` 指令只记 `[指令] 名称`，不含内容。
 
@@ -1605,18 +1628,18 @@ object DeviceStore {
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| 扫了二维码没反应 | 手机和 Mac 不在同一 Wi-Fi | 用 `NeedRescan` 面板的"复制诊断"看两边 IP |
-| 重连一直失败 | Mac 睡眠 / 换了 Wi-Fi / 防火墙 | 尝试唤醒 Mac，然后重新扫码 |
+| 扫了二维码没反应 | 手机和电脑端不在同一 Wi-Fi | 用 `NeedRescan` 面板的"复制诊断"看两边 IP |
+| 重连一直失败 | 电脑睡眠 / 换了 Wi-Fi / 防火墙 | 尝试唤醒电脑，然后重新扫码 |
 | `4001 auth failed` | 二维码被重新生成（旧 PSK 已作废） | 重新扫码 |
-| `4003 expired` | 二维码超 5 分钟 | Mac 上点"生成新码"后扫 |
-| 收到 `hello_ack` 但立刻断开 | 指纹不匹配 | 检查 Mac 端是否被重装 |
+| `4003 expired` | 二维码超 5 分钟 | 电脑端点"生成新码"后扫 |
+| 收到 `hello_ack` 但立刻断开 | 指纹不匹配 | 检查电脑端是否被重装 |
 | App 后台后不断重连耗电 | 用了 `onResume` 而非 `onStart` | 用 `onStart` / `onStop` |
 | 输入中文偶发丢字 | 走明文路径（不该出现） | 检查 `sessionKey` 是否成功派生 |
-| 指令面板空 | Mac 端指令库为空（v2 默认） | 在 Mac 菜单栏创建指令 |
+| 指令面板空 | 电脑端指令库为空（v2 默认） | 在电脑端创建指令 |
 
 ---
 
-## 13. 与 macOS v2 的契约（一句话总结）
+## 13. 与服务端 v2 的契约（一句话总结）
 
 - 唯一信任根是**二维码里的 PSK**；
 - **`deviceId` 是纯元数据**，绝不参与认证；

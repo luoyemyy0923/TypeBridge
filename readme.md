@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | 客户端 | Android | WebSocket 客户端（扫码、加密、发送） | Kotlin + Jetpack Compose + Room | [client-android/readme.md](client-android/readme.md) |
 | 服务端 | macOS | WebSocket 服务端（二维码、键盘注入） | Swift + SwiftUI + FlyingFox | [server-macos/readme.md](server-macos/readme.md) |
-| 服务端 | Windows | WebSocket 服务端（实现中） | Kotlin + Compose Desktop | [server-windows/readme.md](server-windows/readme.md) |
+| 服务端 | Windows | WebSocket 服务端（二维码、键盘注入） | Kotlin + Compose Desktop | [server-windows/readme.md](server-windows/readme.md) |
 
 > 安卓端可同时配对多台电脑（Mac / Windows），靠 `hello_ack.serverId` 区分；协议与加密三端完全对齐（`typebridge://connect` + v2 帧协议）。
 
@@ -59,11 +59,14 @@ swift test                            # 13 个测试
 
 ```bash
 cd server-windows
-./gradlew build          # 构建 + 核心层单测（10 个加密/协议用例）
-./gradlew :app:run       # 本地运行（托盘 + 配对窗口）
+./gradlew build                       # 构建 + 单测（14 个加密/协议/集成用例）
+./gradlew :app:run                    # 本地运行（托盘 + 主面板 + 配对窗口）
+./gradlew :app:createDistributable    # 绿色包输出到 app/dist
+./gradlew :app:packageMsi             # MSI 安装包输出到 app/dist
+./gradlew :app:packageExe             # EXE 安装包输出到 app/dist
 ```
 
-> 设计文档见 [server-windows/readme.md](server-windows/readme.md)；核心层（加密/会话/WS 服务端/键盘注入/二维码/存储）已落地，UI 打磨与打包在迭代中。
+> 已实现与 macOS 对等的核心功能（加密/会话/WS 服务端/键盘注入/二维码/设备管理/开机自启），并完成 `.exe` / `.msi` 打包配置；mDNS 未实现，二维码只带 IP。详见 [server-windows/readme.md](server-windows/readme.md)。
 
 ---
 
@@ -90,9 +93,10 @@ type-bridge/
 │   └── readme.md
 ├── server-windows/          # Windows 服务端（Kotlin + Compose Desktop）
 │   ├── core/                # 纯 JVM 核心库（加密/会话/WS/注入/存储）
-│   ├── app/                 # Compose Desktop 壳（托盘 + 配对窗口）
+│   ├── app/                 # Compose Desktop 壳（托盘 + 主面板 + 配对窗口）
 │   └── readme.md            # 设计文档
 ├── assets/                  # 图标源文件
+├── LICENSE                  # 开源协议
 ├── android.jpg              # README 截图（Android）
 ├── macos.png                # README 截图（macOS）
 ├── windows.png              # README 截图（Windows）
