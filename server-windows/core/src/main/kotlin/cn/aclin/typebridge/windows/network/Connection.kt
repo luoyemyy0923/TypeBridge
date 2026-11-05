@@ -169,7 +169,12 @@ class Connection(
                 val pressEnter = Message.bool(dict, "enter") ?: true
                 val messageId = Message.str(dict, "id") ?: ""
                 val secure = Message.bool(dict, "secure") ?: false
-                val ok = KeyboardInjector.inject(text, pressEnter, allowClipboard = !secure)
+                val allowSecureClipboard = cn.aclin.typebridge.windows.storage.SettingsStore.allowSecureClipboard
+                val ok = KeyboardInjector.inject(
+                    text,
+                    pressEnter,
+                    allowClipboard = !secure || allowSecureClipboard
+                )
                 sendEncrypted(MessageFrames.ack(messageId, ok))
             }
 

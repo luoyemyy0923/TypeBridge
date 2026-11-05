@@ -12,7 +12,7 @@
 |---|---|
 | WebSocket 服务 | FlyingFox 监听 `0.0.0.0:8765`，支持多客户端、自动 PING/PONG |
 | 加密通信 | PSK 握手 / `hello_ack` / 派生会话密钥 / 全链路 AES-256-GCM |
-| 键盘注入 | `CGEventKeyboardSetUnicodeString` + `kVK_Return`；剪贴板 Cmd+V 兜底（`secure=true` 时禁用剪贴板） |
+| 键盘注入 | `CGEventKeyboardSetUnicodeString` + `kVK_Return`；剪贴板 Cmd+V 兜底（`secure=true` 默认禁用，可在菜单栏开启） |
 | 二维码配对 | 生成 `typebridge://connect?...` URI，独立面板展示 + 倒计时 |
 | 网卡选择 | 枚举 IPv4 接口，过滤虚拟网卡，多候选下拉选择 |
 | 网络监测 | `NWPathMonitor` 监听 IP 变化，自动刷新二维码 |
@@ -213,11 +213,12 @@ func routeEncryptedFrame(ws: WebSocketSession, dict: [String: Any]) {
         let enter = (msg["enter"] as? Bool) ?? true
         let id = msg["id"] as? String ?? ""
         let secure = (msg["secure"] as? Bool) ?? false
-        // v2.1：历史记录已移除；secure=true 时禁止剪贴板兜底
+        let allowSecureClipboard = UserDefaults.standard.bool(forKey: "tb.allowSecureClipboard")
+        // v2.1：历史记录已移除；secure=true 默认禁止剪贴板兜底，可在菜单栏开启
         KeyboardInjector.shared.inject(
             text: text,
             pressEnter: enter,
-            allowClipboard: !secure
+            allowClipboard: !secure || allowSecureClipboard
         )
         ws.sendEncrypted(buildAck(id: id, ok: true))
         broadcastStatus()
@@ -585,7 +586,7 @@ final class KeyboardInjector {
 4. **注入前关 popover**：菜单栏 popover 打开时焦点在 popover 上，注入会打到 popover 里的按钮。必须 `NSPopover.performClose` 且等 30ms。
 5. **剪贴板兜底要恢复原内容**：不能永久污染用户剪贴板。
 6. **失败判定**：`CGEvent` 创建失败（极少）或 `post` 后目标无反应——"无反应"无法检测，只能通过"特殊情况（目标是某些 Electron App）时优先走剪贴板"来规避。
-7. **加密内容禁用剪贴板**：`secure=true` 时只走 unicode 注入；检测到系统处于安全输入态（`IsSecureEventInputEnabled()`）或注入失败时弹窗提示，绝不用剪贴板兜底，确保内容只出现在最终光标处。
+7. **加密内容默认禁用剪贴板**：`secure=true` 时默认只走 unicode 注入；检测到系统处于安全输入态（`IsSecureEventInputEnabled()`）或注入失败时弹窗提示，不用剪贴板兜底，确保内容只出现在最终光标处。菜单栏「加密内容允许使用剪贴板」开启后，`secure=true` 与普通文本一样允许剪贴板兜底。
 8. **历史记录已移除**：v2.1 不再保存接收过的文本，启动时会清理旧的 `tb.history` 明文数据。
 
 ### 6.4 各 App 的策略建议
@@ -919,7 +920,7 @@ final class HistoryStore: ObservableObject {
 
 > **v2 修正**：`append` 内部 `DispatchQueue.main.async`，避免从 FlyingFox 的回调线程写 `@Published`。
 >
-> **v2.1 变更**：历史功能已移除；`text` 帧的 `secure=true` 会禁用剪贴板注入，若当前位置无法键盘注入则直接弹窗提示。
+> **v2.1 变更**：历史功能已移除；`text` 帧的 `secure=true` 默认禁用剪贴板注入，若当前位置无法键盘注入则直接弹窗提示。菜单栏可开启「加密内容允许使用剪贴板」放开该限制。
 
 ---
 
@@ -928,7 +929,7 @@ final class HistoryStore: ObservableObject {
 > **实现现状（v2.1）**：下面代码是 v2 参考。实际布局：
 > - 菜单栏图标改为 App 图标；面板标题栏为「显示二维码配对」+「停止/启动」
 > - 「指令库」按钮已移除；历史区块已删除，指令库区块暂时隐藏（底层逻辑保留）
-> - 新增「Mac 名称」行（铅笔编辑）、设备行铅笔重命名、底部「开机自动启动」开关
+> - 新增「Mac 名称」行（铅笔编辑）、设备行铅笔重命名、底部「开机自动启动」「优先使用剪贴板注入」「加密内容允许使用剪贴板」开关
 > - 面板高度由 SwiftUI 动态内容尺寸决定，自动贴近菜单栏
 > - 设备 IP 只显示 IPv4（剥离 `::ffff:`）
 > 详见 §0.5。

@@ -351,13 +351,14 @@ public final class Connection: Identifiable, @unchecked Sendable {
             let text = dict["text"] as? String ?? ""
             let pressEnter = dict["enter"] as? Bool ?? true
             let messageId = dict["id"] as? String ?? ""
-            // 加密快捷输入：secure=true，禁止走剪贴板，内容只出现在最终光标处
+            // 加密快捷输入：secure=true 默认禁止走剪贴板；菜单栏可开启允许
             let secure = dict["secure"] as? Bool ?? false
+            let allowSecureClipboard = UserDefaults.standard.bool(forKey: "tb.allowSecureClipboard")
 
             let ok = await KeyboardInjector.shared.inject(
                 text: text,
                 pressEnter: pressEnter,
-                allowClipboard: !secure
+                allowClipboard: !secure || allowSecureClipboard
             )
             sendEncrypted(MessageFrames.ack(id: messageId, ok: ok))
             await WebSocketServer.shared.broadcastStatus()

@@ -57,6 +57,7 @@ fun MainPanel(
         var devices by remember { mutableStateOf(DeviceStore.active) }
         var serverName by remember { mutableStateOf(WindowsIdentity.name) }
         var preferClipboard by remember { mutableStateOf(SettingsStore.preferClipboard) }
+        var allowSecureClipboard by remember { mutableStateOf(SettingsStore.allowSecureClipboard) }
         var autoLaunch by remember { mutableStateOf(LaunchAtLogin.isEnabled()) }
         var editingName by remember { mutableStateOf(false) }
         var nameDraft by remember { mutableStateOf(serverName) }
@@ -171,6 +172,16 @@ fun MainPanel(
                         }
                     )
                     Text("优先使用剪贴板注入", style = MaterialTheme.typography.bodyMedium)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = allowSecureClipboard,
+                        onCheckedChange = {
+                            allowSecureClipboard = it
+                            SettingsStore.setAllowSecureClipboard(it)
+                        }
+                    )
+                    Text("加密内容允许使用剪贴板", style = MaterialTheme.typography.bodyMedium)
                 }
 
                 // 退出按钮固定在最底部

@@ -173,7 +173,7 @@ fun injectUnicode(text: String) {
 
 - **换行**：文本内部 `\n`/`\r\n` → `Shift+Return`（软换行，避免误发送）；末尾「发送时按回车」→ 普通 `VK_RETURN`。
 - **剪贴板兜底**：`java.awt` 剪贴板写入文本 → 模拟 `Ctrl+V`（`VK_CONTROL` + `VK_V`）→ 延迟后恢复原剪贴板。
-- **`secure=true`（加密快捷输入）**：**禁用剪贴板**，只走 `SendInput` Unicode；注入失败弹窗提示，不留剪贴板痕迹。
+- **`secure=true`（加密快捷输入）**：**默认禁用剪贴板**，只走 `SendInput` Unicode；注入失败时返回 `ok=false`，不留剪贴板痕迹。主面板可开启「加密内容允许使用剪贴板」，开启后与普通文本一样允许剪贴板兜底。
 - **UIPI 限制（macOS 无对应物）**：非提权进程无法把输入注入到**管理员权限**窗口（SendInput 被静默丢弃）。策略：检测到目标窗口不可注入时弹窗提示（"请以普通权限运行目标程序，或手动输入"），不偷偷提权。
 
 ### 7.3 二维码 + 网卡 + PSK
@@ -196,7 +196,7 @@ fun injectUnicode(text: String) {
 | 指令库 | `%APPDATA%\TypeBridge\actions.json` | 默认空库 |
 | 当前 PSK | `%APPDATA%\TypeBridge\psk.bin`（**DPAPI 加密**） | 对应 Keychain；生命周期短 |
 | serverId / serverName | `%APPDATA%\TypeBridge\identity.json` | `serverId` 稳定 UUID；`serverName` 默认取 `COMPUTERNAME` |
-| 界面偏好 | `%APPDATA%\TypeBridge\settings.json` | 优先剪贴板等设置 |
+| 界面偏好 | `%APPDATA%\TypeBridge\settings.json` | 优先剪贴板、加密内容允许使用剪贴板等设置 |
 
 > Windows 无 POSIX 0600；`%APPDATA%` 本身按用户隔离。PSK 用 DPAPI（`CryptProtectData`，JNA）做加密，等价于 Keychain 的语义。
 
@@ -206,7 +206,7 @@ fun injectUnicode(text: String) {
 - 主面板（`MainPanel`，无边框 `Window` 400×540，定位到屏幕右下角/任务栏之上）：
   - 头部：服务状态（在线/停止 + 连接设备数）、「显示二维码配对」、「停止/启动」
   - 设备列表：改名（`nameOverridden=true` 后不再被安卓上报名覆盖）、移除（发 `4006` + 断开 + 撤销会话）
-  - 设置：电脑名称、优先使用剪贴板注入、开机自动启动、退出
+  - 设置：电脑名称、优先使用剪贴板注入、加密内容允许使用剪贴板、开机自动启动、退出
 - 配对窗口（独立 `Window` 380×640）：二维码 + `ip:port` + 指纹 + 剩余秒数倒计时 + 网卡下拉 +「重新生成二维码」「复制连接串」；配对成功后显示绿色「已连接」。
 
 ### 7.6 开机自启
@@ -239,7 +239,7 @@ fun injectUnicode(text: String) {
 | **0 脚手架** | `server-windows` Gradle + Compose Desktop 工程；`main.kt` 跑通 `Tray` + 空窗 | 编译 + 启动可见托盘 |
 | **1 核心移植** | `Crypto.kt` / `Session.kt` / `SessionStore.kt` / `MessageFrames.kt` / `Constants.kt` / 模型 | 单测对齐安卓 `CryptoTests`（加解密/派生/指纹恒时） |
 | **2 WS 服务端** | Java-WebSocket 起 `0.0.0.0:8765`；hello 认证 / 会话恢复 / enc 解密 / 业务路由 / 4001-4006 / broadcast | 与安卓真机握手成功 |
-| **3 键盘注入** | `SendInput` Unicode + 回车 + 剪贴板兜底 + `secure` 禁剪贴板 | 注入中英文/Emoji/换行/回车 |
+| **3 键盘注入** | `SendInput` Unicode + 回车 + 剪贴板兜底 + `secure` 默认禁剪贴板（可开启） | 注入中英文/Emoji/换行/回车 |
 | **4 二维码+PSK** | ZXing 生成 URI + 网卡枚举/过滤/排序 + PSK 生成/DPAPI/一次性消费 | 扫码配对 + `4003` 过期 |
 | **5 托盘 UI** | 托盘（无右键菜单，双击打开主面板）+ 主面板 + 配对窗口（倒计时/网卡/复制串/重新生成）+ 设备列表（改名/移除 `4006`） | 全流程联调 |
 | **6 增强** | 开机自启（注册表）+ 网络变化刷新二维码（mDNS 未实现，二维码只带 IP） | 换网自动刷新 |

@@ -6,7 +6,10 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable
-data class Settings(val preferClipboard: Boolean = false)
+data class Settings(
+    val preferClipboard: Boolean = false,
+    val allowSecureClipboard: Boolean = false
+)
 
 /** 应用设置（对应 macOS 的 UserDefaults）。 */
 object SettingsStore {
@@ -17,15 +20,31 @@ object SettingsStore {
     var preferClipboard: Boolean = false
         private set
 
+    @Volatile
+    var allowSecureClipboard: Boolean = false
+        private set
+
     init { restore() }
 
     fun setPreferClipboard(value: Boolean) {
         preferClipboard = value
-        runCatching { file.writeText(json.encodeToString(Settings(value))) }
+        persist()
+    }
+
+    fun setAllowSecureClipboard(value: Boolean) {
+        allowSecureClipboard = value
+        persist()
+    }
+
+    private fun persist() {
+        runCatching {
+            file.writeText(json.encodeToString(Settings(preferClipboard, allowSecureClipboard)))
+        }
     }
 
     private fun restore() {
-        preferClipboard = runCatching { json.decodeFromString<Settings>(file.readText()) }
-            .getOrNull()?.preferClipboard ?: false
+        val settings = runCatching { json.decodeFromString<Settings>(file.readText()) }.getOrNull()
+        preferClipboard = settings?.preferClipboard ?: false
+        allowSecureClipboard = settings?.allowSecureClipboard ?: false
     }
 }

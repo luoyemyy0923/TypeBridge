@@ -7,6 +7,7 @@ public struct MenuBarView: View {
     @ObservedObject private var actions = ActionStore.shared
 
     @State private var preferClipboard = UserDefaults.standard.bool(forKey: "tb.preferClipboard")
+    @State private var allowSecureClipboard = UserDefaults.standard.bool(forKey: "tb.allowSecureClipboard")
     @State private var editingDeviceId: String?
     @State private var editingName: String = ""
     @State private var editingServerName = false
@@ -306,6 +307,13 @@ public struct MenuBarView: View {
                 .onChange(of: preferClipboard) { newValue in
                     KeyboardInjector.shared.usesClipboardFirst = newValue
                 }
+
+            Toggle("加密内容允许使用剪贴板", isOn: $allowSecureClipboard)
+                .font(.caption)
+                .onChange(of: allowSecureClipboard) { newValue in
+                    UserDefaults.standard.set(newValue, forKey: "tb.allowSecureClipboard")
+                }
+                .help("默认关闭：加密内容只做键盘注入；开启后注入失败时允许使用剪贴板兜底")
         }
     }
 

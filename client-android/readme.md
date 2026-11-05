@@ -28,7 +28,7 @@
 - `hello_ack` 新增 `serverId`：Mac 的稳定 UUID，Android 用它作为 `Device.deviceId`
 - 新增错误码 `4006 = device removed by Mac`：Mac 移除设备时先发加密 `error`，再断开
 - `text` 帧新增可选 `record`（默认 `true`）：`record=false` 表示 Android 不写入本地历史（用于加密快捷输入）
-- `text` 帧新增可选 `secure`（默认 `false`）：`secure=true` 表示加密内容，macOS **禁止剪贴板兜底**，只允许直接键盘注入；无法注入时弹窗提示，不留下任何剪贴板痕迹
+- `text` 帧新增可选 `secure`（默认 `false`）：`secure=true` 表示加密内容，电脑端**默认禁止剪贴板兜底**，只允许直接键盘注入；无法注入时弹窗提示，不留下任何剪贴板痕迹。电脑端设置里可开启「加密内容允许使用剪贴板」放开该限制
 - 会话恢复：每次成功恢复都会**轮换新的 `sessionToken`** 并滑动续期，TTL = **30 天**；旧 token 保留一代作为 ack 丢失兜底
 - 会话持久化：Mac 写入 `~/Library/Application Support/TypeBridge/sessions.json`（0600），不依赖 Keychain 或代码签名；重启、重新构建、换路径都能恢复
 - 二维码 URI 的 query 值做严格 percent-encoding：避免 `+` 被 Android `Uri.getQueryParameter()` 解码成空格（`psk` 的 base64 尤其关键）
@@ -68,6 +68,7 @@
 - 移除设备 = 立即断开 + 清空该设备所有会话，必须重新扫码才能再次配对
 - 弹出面板使用 SwiftUI 动态高度，贴近菜单栏
 - 键盘注入：文本内部换行使用 **Shift+Return**（避免聊天/编辑器误发送）；「发送时按回车」才使用普通 Return
+- 新增「加密内容允许使用剪贴板」开关（默认关闭）；开启后 `secure=true` 的加密内容也允许剪贴板兜底
 - 构建产物无开发者证书，使用 ad-hoc 签名；重新构建后可能需要重新勾选辅助功能、重新开启开机启动
 
 ### 0.6 Android 本地存储与快捷输入（Room）
@@ -91,7 +92,7 @@
 - 加密内容展示：列表只显示首尾两个字符、中间全部替换为 `*`（≤2 字符全 `*`），不把明文长期留在内存；发送时才按 id 从数据库解密
 - 加密项：内容与「是否加密」不可修改；描述、发送时回车、所属分组可正常修改（只更新元信息，绝不写回文本），编辑弹窗只展示这三项；如需改内容只能删除后重新添加
 - 明文快捷输入：正常回显、编辑、删除；编辑弹窗含「描述 / 文本 / 分组 / 加密保存 / 发送时按回车」；只填描述时自动把描述同步为内容，列表只显示一行
-- 发送：快捷输入使用自身的 `enter` 开关（不跟随主页全局开关）；加密快捷输入以 `record=false` + `secure=true` 发送：不写历史，且 Mac 端禁用剪贴板注入
+- 发送：快捷输入使用自身的 `enter` 开关（不跟随主页全局开关）；加密快捷输入以 `record=false` + `secure=true` 发送：不写历史，电脑端默认禁用剪贴板注入（可在电脑端设置中开启）
 
 ---
 
@@ -317,13 +318,13 @@ sessionKey  = HKDF-SHA256(
   "text": "hello world",
   "enter": true,
   "record": true,                        // false = Android 不写本地历史（加密快捷输入）
-  "secure": false,                       // true = 加密内容，macOS 禁用剪贴板兜底
+  "secure": false,                       // true = 加密内容，电脑端默认禁用剪贴板兜底
   "ts": 1700000000000
 }
 ```
 
 > v2 把"是否回车"从"选哪条指令"改为 `enter` 布尔字段，与安卓端"发送时回车"开关一一对应。Mac 端按 `enter` 决定是否 `pressReturn()`。
-> v2.1 新增 `record`（缺省 `true`）与 `secure`（缺省 `false`）。加密快捷输入会同时发 `record=false, secure=true`：Android 不落历史，Mac 不允许剪贴板注入。
+> v2.1 新增 `record`（缺省 `true`）与 `secure`（缺省 `false`）。加密快捷输入会同时发 `record=false, secure=true`：Android 不落历史，电脑端默认不允许剪贴板注入（可在电脑端设置中开启「加密内容允许使用剪贴板」）。
 
 **执行指令**
 

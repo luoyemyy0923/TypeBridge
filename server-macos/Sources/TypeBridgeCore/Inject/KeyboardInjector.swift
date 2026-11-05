@@ -84,7 +84,7 @@ public final class KeyboardInjector {
     private func showSecureInjectionAlert() {
         let alert = NSAlert()
         alert.messageText = "无法注入加密内容"
-        alert.informativeText = "当前光标位置不支持键盘注入（可能处于安全输入状态）。加密内容不会通过剪贴板填充，请移动光标到可输入的文本框后重试。"
+        alert.informativeText = "当前光标位置不支持键盘注入（可能处于安全输入状态）。加密内容默认不会通过剪贴板填充；如需允许，请在菜单栏开启「加密内容允许使用剪贴板」，或移动光标到可输入的文本框后重试。"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "好")
         NSApp.activate(ignoringOtherApps: true)
