@@ -42,6 +42,7 @@ server-windows/.gradle/
 server-windows/build/
 server-windows/core/build/
 server-windows/app/build/
+server-windows/app/dist/
 server-windows/.kotlin/
 
 # 日志与临时文件

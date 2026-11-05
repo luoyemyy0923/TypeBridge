@@ -21,7 +21,11 @@ compose.desktop {
         mainClass = "cn.aclin.typebridge.windows.app.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
-            packageName = "TypeBridge"
+            // 打包产物输出到 app/dist（避免与 build/ 下可能被占用的历史产物冲突）
+            outputBaseDir.set(project.layout.projectDirectory.dir("dist"))
+            // 应用名统一为中文「投字」：决定程序列表显示名、开始菜单快捷方式、
+            // 安装目录与 exe 名（与托盘/窗口标题保持一致）。
+            packageName = "投字"
             packageVersion = "2.1.0"
             description = "投字 - 局域网键入桥（Windows 服务端）"
             vendor = "aclin"
