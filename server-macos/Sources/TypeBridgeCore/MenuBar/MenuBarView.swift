@@ -108,7 +108,7 @@ public struct MenuBarView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(devices.active) { device in
                             if editingDeviceId == device.id {
                                 HStack(spacing: 6) {
@@ -170,7 +170,7 @@ public struct MenuBarView: View {
                         }
                     }
                 }
-                .frame(maxHeight: CGFloat(min(devices.active.count, 5)) * 26)
+                .frame(maxHeight: CGFloat(min(devices.active.count, 5)) * 34)
 
                 Text("点铅笔可手动改名；未手动改名时会跟随安卓端上报的名称")
                     .font(.caption2)
